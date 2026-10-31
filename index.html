@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MCU 64 Bracket</title>
+<meta name="description" content="Pick winners through six rounds of a randomized 64-character Marvel bracket, hear each character's theme song, and crown a champion.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky arena nav over a single scrolling column; each view is a section swapped by the hash. Dark-only by design: a stadium at night. */
+:root {
+  color-scheme: dark;
+  --bg: #0d1220;
+  --surface: #121a2b;
+  --card: #172034;
+  --raised: #1d2840;
+  --line: #2a3654;
+  --fg: #eef1f7;
+  --muted: #95a0b8;
+  --red: #e2363b;
+  --red-ink: #ffffff;
+  --gold: #f2c14e;
+  --gold-ink: #241b05;
+  --cyan: #5fd3e8;
+  --font-display: "Oswald", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --radius: 8px;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 72px; }
+body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 45% at 50% -10%, color-mix(in oklab, var(--red) 22%, transparent), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, color-mix(in oklab, var(--cyan) 9%, transparent), transparent);
+  background-attachment: fixed;
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; margin: 0; text-wrap: balance; line-height: 1.1; }
+p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+img { max-width: 100%; display: block; }
+a { color: var(--cyan); }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Nav */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in oklab, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.nav .wrap { display: flex; align-items: center; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 20px; text-decoration: none; color: var(--fg); padding-block: 12px; flex-shrink: 0; }
+.brand b { background: var(--red); color: var(--red-ink); padding: 0 6px; border-radius: 3px; font-weight: 600; }
+.nav nav { display: flex; gap: 2px; overflow-x: auto; min-width: 0; scrollbar-width: none; }
+.nav nav a { flex-shrink: 0; padding: 8px 12px; border-radius: 6px; text-decoration: none; color: var(--muted); font-family: var(--font-display); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.nav nav a:hover { color: var(--fg); }
+.nav nav a[aria-current="page"] { background: color-mix(in oklab, var(--red) 16%, transparent); color: var(--red); }
+
+main { padding-block: 32px 64px; }
+.eyebrow { font-family: var(--font-display); font-size: 12px; letter-spacing: .45em; text-transform: uppercase; color: var(--cyan); }
+.page-head { text-align: center; display: grid; gap: 10px; justify-items: center; }
+.page-head h1 { font-size: clamp(34px, 7vw, 60px); }
+.page-head h1 em { font-style: normal; color: var(--red); }
+.lede { color: var(--muted); max-width: 60ch; font-size: 14px; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 6px; border: 1px solid transparent; font-size: 14px; font-weight: 500; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; text-decoration: none; }
+.btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.btn-primary { background: var(--red); color: var(--red-ink); }
+.btn-primary:hover { background: color-mix(in oklab, var(--red) 85%, white); }
+.btn-gold { background: var(--gold); color: var(--gold-ink); }
+.btn-ghost { background: var(--raised); color: var(--fg); }
+.btn-ghost:hover { background: var(--line); }
+.btn-line { background: transparent; border-color: var(--line); color: var(--fg); }
+.btn-line:hover { border-color: var(--cyan); color: var(--cyan); }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.btn-icon { width: 38px; padding: 0; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.toolbar { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 24px; }
+
+/* Progress */
+.progress { max-width: 440px; margin: 20px auto 0; }
+.progress-meta { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 99px; background: var(--raised); overflow: hidden; margin-top: 4px; }
+.bar > i { display: block; height: 100%; background: var(--red); border-radius: inherit; transition: width .3s; }
+.bar.gold > i { background: var(--gold); }
+.note { text-align: center; color: var(--cyan); font-size: 12px; margin-top: 8px; }
+
+/* Round tabs */
+.rounds { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-top: 28px; }
+@media (min-width: 760px) { .rounds { justify-content: center; } }
+.round-tab { flex-shrink: 0; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 99px; padding: 6px 16px; font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+.round-tab.done { border-color: color-mix(in oklab, var(--gold) 50%, transparent); color: var(--gold); }
+.round-tab.active { border-color: var(--red); color: var(--red); background: color-mix(in oklab, var(--red) 14%, transparent); box-shadow: 0 0 24px -6px color-mix(in oklab, var(--red) 60%, transparent); }
+.round-tab:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Matchups */
+.matches { display: grid; gap: 20px; margin-top: 20px; }
+@media (min-width: 980px) { .matches { grid-template-columns: 1fr 1fr; } }
+.match { border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 70%, transparent); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.match-label { text-align: center; font-family: var(--font-display); font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--muted); }
+.vs { text-align: center; font-family: var(--font-display); font-size: 12px; color: var(--red); letter-spacing: .3em; margin-block: -4px; }
+.fighter { position: relative; display: flex; align-items: stretch; border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); overflow: hidden; transition: border-color .15s, transform .15s, opacity .2s, filter .2s; }
+.fighter:hover { border-color: color-mix(in oklab, var(--red) 70%, transparent); transform: translateY(-2px); }
+.fighter.win { border-color: var(--gold); box-shadow: 0 0 0 1px color-mix(in oklab, var(--gold) 60%, transparent), 0 0 34px -8px color-mix(in oklab, var(--gold) 60%, transparent); }
+.fighter.lose { opacity: .45; filter: grayscale(1); }
+.fighter .portrait { width: 88px; height: 108px; flex-shrink: 0; border: 0; padding: 0; background: var(--raised); }
+.fighter .portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.fighter .pick { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 12px 52px 12px 14px; display: grid; align-content: center; gap: 2px; }
+.fighter .name { font-family: var(--font-display); font-size: 18px; text-transform: uppercase; line-height: 1.15; }
+.team { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.actor { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.advances { display: inline-flex; width: fit-content; margin-top: 6px; background: var(--gold); color: var(--gold-ink); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+.fighter .info { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border-radius: 6px; border: 1px solid color-mix(in oklab, var(--cyan) 60%, transparent); background: color-mix(in oklab, var(--surface) 80%, transparent); color: var(--cyan); display: grid; place-items: center; }
+.fighter .info svg { width: 18px; height: 18px; }
+.awaiting { display: grid; place-items: center; height: 108px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; }
+
+/* Bracket */
+.bracket-hint { text-align: center; font-size: 12px; color: var(--muted); margin-top: 20px; }
+.bracket { margin-top: 8px; max-height: 72vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklab, var(--surface) 70%, transparent); padding: 16px; }
+.bracket-grid { display: flex; width: max-content; }
+.b-col { display: flex; flex-direction: column; }
+.b-col h3 { width: 156px; text-align: center; font-size: 12px; letter-spacing: .2em; color: var(--red); padding: 4px 0; height: 28px; }
+.b-slot { display: flex; align-items: center; }
+.b-match { width: 156px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); overflow: hidden; font-size: 11px; }
+.b-match button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 6px 8px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-match button + button { border-top: 1px solid var(--line); }
+.b-match button:not(:disabled):hover { background: var(--raised); color: var(--fg); }
+.b-match button.won { background: color-mix(in oklab, var(--gold) 15%, transparent); color: var(--gold); font-weight: 600; }
+.b-match button:disabled { cursor: default; }
+.b-link { display: flex; flex-direction: column; padding-top: 28px; color: var(--line); }
+
+/* Champion */
+.champion { max-width: 680px; margin: 32px auto 0; border: 1px solid var(--gold); border-radius: 16px; overflow: hidden; background: var(--card); box-shadow: 0 0 60px -12px color-mix(in oklab, var(--gold) 55%, transparent); animation: rise .5s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes rise { from { transform: scale(.94); opacity: .4; } }
+.champion-band { background: color-mix(in oklab, var(--gold) 15%, transparent); color: var(--gold); text-align: center; padding: 12px; font-family: var(--font-display); letter-spacing: .35em; text-transform: uppercase; font-size: 14px; }
+.champion-art { background: var(--surface); }
+.champion-art img { width: 100%; height: clamp(300px, 52vw, 400px); object-fit: contain; }
+.champion-body { padding: 24px; display: grid; gap: 16px; }
+.champion-body h2 { font-size: clamp(28px, 6vw, 40px); }
+.panel { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; }
+.panel h3 { font-size: 12px; letter-spacing: .3em; color: var(--cyan); }
+.panel.gold { border-color: color-mix(in oklab, var(--gold) 45%, transparent); }
+.panel.gold h3 { color: var(--gold); }
+.path { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+.path li { display: grid; grid-template-columns: 96px 1fr; gap: 8px; }
+.path b { color: var(--fg); font-weight: 500; }
+.path span:first-child { font-family: var(--font-display); text-transform: uppercase; font-size: 12px; letter-spacing: .1em; color: var(--gold); padding-top: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Character grid */
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; align-items: center; }
+.search { position: relative; flex: 1 1 260px; }
+.search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); }
+.search input, select.field { width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); padding: 0 12px 0 36px; }
+select.field { padding-left: 12px; }
+.seg { display: flex; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 3px; }
+.seg button { border: 0; background: none; color: var(--muted); padding: 6px 12px; border-radius: 4px; font-family: var(--font-display); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+.seg button[aria-pressed="true"] { background: color-mix(in oklab, var(--red) 16%, transparent); color: var(--red); }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-top: 12px; }
+.chip { flex-shrink: 0; border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 99px; padding: 4px 12px; font-size: 12px; }
+.chip[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); background: color-mix(in oklab, var(--cyan) 10%, transparent); }
+.count { font-size: 12px; color: var(--muted); margin-top: 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 16px; margin-top: 12px; padding: 0; list-style: none; }
+.tile { border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s; }
+.tile:hover { border-color: color-mix(in oklab, var(--red) 70%, transparent); }
+.tile > button { border: 0; background: none; text-align: left; padding: 0; display: flex; flex-direction: column; flex: 1; }
+.tile img { width: 100%; aspect-ratio: 4/5; object-fit: cover; object-position: top; background: var(--surface); }
+.tile .meta { padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+.tile .name { font-family: var(--font-display); text-transform: uppercase; line-height: 1.15; }
+.tile footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding: 6px 12px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile footer button { border: 0; background: none; color: var(--cyan); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 4px 0; }
+.trophy { color: var(--gold); }
+
+/* Versus */
+.vs-pickers { display: grid; gap: 12px; margin-top: 32px; align-items: end; }
+@media (min-width: 720px) { .vs-pickers { grid-template-columns: 1fr auto 1fr; } }
+.vs-pickers label { display: grid; gap: 4px; font-family: var(--font-display); font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--muted); }
+.vs-pickers .mid { display: flex; justify-content: center; gap: 8px; }
+.record { margin-top: 20px; text-align: center; }
+.score { font-family: var(--font-display); font-size: 44px; font-variant-numeric: tabular-nums; }
+.score .lead { color: var(--gold); }
+.duel { display: grid; gap: 20px; margin-top: 20px; }
+@media (min-width: 820px) { .duel { grid-template-columns: 1fr 1fr; } }
+.card { border: 1px solid var(--line); background: var(--card); border-radius: 12px; overflow: hidden; min-width: 0; }
+.card-art { background: var(--surface); }
+.card-art img { width: 100%; height: 300px; object-fit: contain; }
+.card-body { padding: 20px; display: grid; gap: 14px; }
+.card-body h2 { font-size: 26px; }
+.stats2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 70%, transparent); border-radius: var(--radius); padding: 12px; text-align: center; min-width: 0; }
+.stat .v { font-family: var(--font-display); font-size: 24px; text-transform: uppercase; line-height: 1.15; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.stat .s { font-size: 11px; color: var(--gold); }
+.stat .l { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.dots { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+.dots li { display: flex; gap: 8px; }
+.dots li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); flex-shrink: 0; margin-top: 8px; }
+.dots.red li::before { background: var(--red); }
+.sub-h { display: flex; align-items: center; gap: 8px; font-size: 14px; letter-spacing: .12em; }
+.sub-h svg { width: 16px; height: 16px; }
+
+/* Leaderboard */
+.table-wrap { margin-top: 32px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklab, var(--surface) 70%, transparent); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-family: var(--font-display); font-weight: 500; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); padding: 12px 14px; border-bottom: 1px solid var(--line); }
+td { padding: 8px 14px; border-bottom: 1px solid color-mix(in oklab, var(--line) 60%, transparent); font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+.num { text-align: right; }
+.who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.who img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; object-position: top; border: 1px solid var(--line); flex-shrink: 0; }
+.who div { min-width: 0; }
+.rank { font-family: var(--font-display); color: var(--muted); }
+.m1 { color: var(--gold); } .m2 { color: var(--cyan); } .m3 { color: var(--red); }
+.status { text-align: center; font-size: 13px; color: var(--muted); margin-top: 12px; }
+
+/* History */
+.stats4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 12px; margin-top: 32px; }
+.rates { margin-top: 20px; }
+.rate { display: grid; grid-template-columns: minmax(0, 13rem) 1fr 6.5rem; gap: 12px; align-items: center; font-size: 14px; }
+.rate span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rate span:last-child { text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .rate { grid-template-columns: minmax(0, 1fr) 4.5rem; } .rate .bar { grid-column: 1 / -1; grid-row: 2; } }
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+.section-head h2 { font-size: 22px; }
+.entries { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+.entry { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); padding: 8px 12px 8px 8px; }
+.entry img { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; object-position: top; border: 1px solid color-mix(in oklab, var(--gold) 50%, transparent); flex-shrink: 0; }
+.entry .txt { flex: 1; min-width: 0; }
+.entry .txt p:first-child { font-family: var(--font-display); text-transform: uppercase; }
+.entry .txt p:last-child { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.empty { margin-top: 40px; border: 1px dashed var(--line); border-radius: 12px; padding: 40px 16px; text-align: center; color: var(--muted); display: grid; gap: 16px; justify-items: center; }
+.loader { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.loader input { flex: 1 1 240px; height: 38px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); padding: 0 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; min-width: 0; }
+.confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+
+/* About */
+.steps { list-style: none; padding: 0; margin: 32px 0 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.steps li { border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 70%, transparent); border-radius: 12px; padding: 16px; display: grid; gap: 6px; align-content: start; }
+.steps .k { font-family: var(--font-display); font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: var(--red); }
+.steps h2 { font-size: 18px; }
+.steps p { color: var(--muted); font-size: 14px; }
+.faq { margin-top: 40px; max-width: 760px; margin-inline: auto; }
+.faq h2 { font-size: 24px; margin-bottom: 8px; }
+details { border-bottom: 1px solid var(--line); padding: 14px 0; }
+summary { cursor: pointer; font-weight: 500; }
+details p { color: var(--muted); font-size: 14px; margin-top: 8px; max-width: 65ch; }
+
+/* Detail dialog */
+dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); overflow: auto; }
+dialog::backdrop { background: rgba(4, 7, 14, .78); }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--card); z-index: 1; }
+.dlg-head h2 { font-size: 26px; }
+.dlg-body { padding: 20px; display: grid; gap: 16px; }
+.dlg-art { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.dlg-art img { width: 100%; height: 300px; object-fit: contain; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.pill.c { border-color: color-mix(in oklab, var(--cyan) 50%, transparent); color: var(--cyan); }
+.two { display: grid; gap: 12px; }
+@media (min-width: 600px) { .two { grid-template-columns: 1fr 1fr; } }
+
+/* Toast + confetti */
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); opacity: 0; background: var(--raised); border: 1px solid var(--line); color: var(--fg); padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 60; transition: opacity .2s, transform .2s; max-width: calc(100vw - 32px); pointer-events: none; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; overflow: hidden; }
+.confetti i { position: absolute; top: -10px; width: 9px; height: 4px; border-radius: 1px; animation: fall linear forwards; }
+@keyframes fall { 0% { transform: translateY(-5vh) rotate(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(110vh) rotate(var(--r)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .confetti { display: none; } }
+
+body { margin: 0; }
+[hidden] { display: none !important; }
+
+/* Theme song player: one persistent Spotify controller, docked to the bottom */
+.player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: color-mix(in oklab, var(--surface) 94%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); transition: transform .3s; }
+.player.off { transform: translateY(130%); pointer-events: none; }
+.player-in { display: flex; align-items: center; gap: 12px; max-width: 760px; padding-top: 8px; }
+.player-main { flex: 1; min-width: 0; }
+.player-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 4px; }
+.player iframe { display: block; border-radius: 10px; }
+body.playing { padding-bottom: 130px; }
+.fighter .music { position: absolute; bottom: 8px; right: 8px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid color-mix(in oklab, var(--cyan) 60%, transparent); background: color-mix(in oklab, var(--surface) 80%, transparent); color: var(--cyan); display: grid; place-items: center; }
+.fighter .music svg { width: 16px; height: 16px; }
+.fighter .music[aria-pressed="true"] { background: color-mix(in oklab, var(--cyan) 18%, transparent); border-color: var(--cyan); }
+
+footer.site { border-top: 1px solid var(--line); }
+footer.site p { padding-block: 24px; text-align: center; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#bracket" aria-label="MCU 64 home"><b>MCU</b>64</a>
+    <nav aria-label="Main">
+      <a href="#bracket" data-nav="bracket">Bracket</a>
+      <a href="#characters" data-nav="characters">Characters</a>
+      <a href="#versus" data-nav="versus">Versus</a>
+      <a href="#leaderboard" data-nav="leaderboard">Leaderboard</a>
+      <a href="#history" data-nav="history">My History</a>
+      <a href="#about" data-nav="about">About</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="app" aria-live="polite"></main>
+
+<footer class="site"><div class="wrap"><p>MCU 64 is a fan-made bracket game. It is not affiliated with or endorsed by Marvel Studios or Disney. Characters and names belong to their respective owners.</p></div></footer>
+
+<dialog id="detail" aria-labelledby="detail-title"></dialog>
+<div class="toast" id="toast" role="status"></div>
+<div class="player off" id="player">
+  <div class="wrap player-in">
+    <div class="player-main">
+      <p class="player-label" id="player-label">Theme song</p>
+      <div id="spotify-host"></div>
+    </div>
+    <button class="btn btn-line btn-icon" data-act="stopTheme" aria-label="Stop theme song" title="Stop">&#10005;</button>
+  </div>
+</div>
+
+<script>
+const CHARS = [{"id":"deadpool","n":"Deadpool (Wade Wilson)","t":"Mutants / Mercenaries","a":"Ryan Reynolds","b":"The Merc with a Mouth whose fourth-wall breaks match his unstoppable healing factor.","m":"Slaughtering Time Variance Authority (TVA) agents in the Void using Wolverine's adamantium skeleton.","s":["Accelerated healing factor","Combat ingenuity","Unpredictable fourth-wall tactical awareness"],"w":["Impulsive","Reckless","Emotional attachment to loved ones"],"sp":"62bOmKYxYg7dhrC6gH9vFn","tt":"Bye Bye Bye"},{"id":"wolverine","n":"Wolverine (Logan)","t":"Mutants / X-Men","a":"Hugh Jackman","b":"A battle-hardened mutant with an adamantium skeleton and legendary berserker rage.","m":"Teaming up with Deadpool to stop the Cassandra Nova threat and tearing through the Void.","s":["Adamantium claws/skeleton","Animal senses","Rapid regeneration"],"w":["Traumatized past","Vulnerability to heavy magnetic manipulation"],"sp":"492ceDtqmafb6QD1Xfhpmo","tt":"Like a Prayer - Choir Version From “Deadpool & Wolverine”"},{"id":"spiderman-holland","n":"Spider-Man (Tom Holland)","t":"Avengers / Multiverse","a":"Tom Holland","b":"High school hero elevated to cosmic-level threat response under Iron Man's mentorship.","m":"Curing Green Goblin while holding back his vengeance in No Way Home.","s":["Spider-sense","Nano-tech Iron Spider armor","Exceptional agility and acrobatics"],"w":["Naive trust","Heavy burden of personal loss and responsibility"],"sp":"2IE9mgjkkk7Lfj9wgzz8MT","tt":"Suite New Day - from \"Spider-Man: Brand New Day\" Soundtrack"},{"id":"spiderman-maguire","n":"Spider-Man (Tobey Maguire)","t":"Multiverse / Web-Slingers","a":"Tobey Maguire","b":"The veteran web-slinger from an alternate universe who learned early that great power brings great responsibility.","m":"Stopping the out-of-control elevated train in New York City.","s":["Organic web-shooting","Deep combat experience","Steady moral compass"],"w":["Physical fatigue from years of fighting","Vulnerability to high-frequency sound"],"sp":"779ooI3rBd0CLqCiiJmtVo","tt":"Hero (feat. Josey Scott)"},{"id":"spiderman-garfield","n":"Spider-Man (Andrew Garfield)","t":"Multiverse / Web-Slingers","a":"Andrew Garfield","b":"An acrobatic, science-savvy Spider-Man from an alternate universe driven by redemption.","m":"Catching MJ as she falls from the Statue of Liberty scaffolding, redeeming his past trauma.","s":["High intellect","Custom web-shooters","Hyper-fast reflexes"],"w":["Deep emotional guilt","Reckless bravery in high-stakes fights"],"sp":"7D42jUGCSe0BhIco9Pb7TB","tt":"I'm Spider-Man"},{"id":"mister-fantastic","n":"Mister Fantastic (Reed Richards)","t":"Fantastic Four","a":"Pedro Pascal","b":"The smartest man alive, leader of the Fantastic Four, capable of extreme body elasticity.","m":"Crossing the Multiverse with the Fantastic Four team inside their retro-futuristic craft.","s":["Genius intellect","Body malleability","Mastery of quantum physics"],"w":["Over-analyzing tactical threats","Physical limits under extreme heat or freezing cold"],"sp":"7h1r6c5C8HZpDmmCodIIW4","tt":"The Fantastic Four: First Steps Main Theme Extended Version"},{"id":"invisible-woman","n":"Invisible Woman (Sue Storm)","t":"Fantastic Four","a":"Vanessa Kirby","b":"Powerful hero capable of creating impenetrable force fields and bending light for invisibility.","m":"Shielding her team from catastrophic cosmic energy bursts.","s":["Constructing telekinetic force shields","Invisible offensive strikes"],"w":["High physical strain when sustaining maximum-power shields under heavy bombardment"],"sp":"7h1r6c5C8HZpDmmCodIIW4","tt":"The Fantastic Four: First Steps Main Theme Extended Version"},{"id":"human-torch","n":"Human Torch (Johnny Storm)","t":"Fantastic Four","a":"Joseph Quinn","b":"Jonathan 'Johnny' Storm of Earth-828, the charismatic younger brother of Sue Storm and a founding member of the Fantastic Four. An Eagle Scout turned astronaut, cosmic radiation left him able to ignite his body into living flame and fly.","m":"Decoding Shalla-Bal's language from Galactus' records and convincing the Silver Surfer to turn on her master in The Fantastic Four: First Steps.","s":["Pyrokinesis and supernova bursts","Flight at blazing speed","Sharp mind for languages and codes"],"w":["Impulsive, showboating streak","Flame can be doused by water or starved of oxygen"],"sp":"7h1r6c5C8HZpDmmCodIIW4","tt":"The Fantastic Four: First Steps Main Theme Extended Version"},{"id":"the-thing","n":"The Thing (Ben Grimm)","t":"Fantastic Four","a":"Ebon Moss-Bachrach","b":"A former pilot transformed into an unstoppable orange rock-skinned powerhouse.","m":"Charging into battle delivering his classic 'It's Clobberin' Time!' strike.","s":["Superhuman physical strength","Thick rock armor","Undying loyalty"],"w":["Lack of ranged mobility","Susceptible to sonic disruption weapons"],"sp":"7h1r6c5C8HZpDmmCodIIW4","tt":"The Fantastic Four: First Steps Main Theme Extended Version"},{"id":"star-lord","n":"Star-Lord (Peter Quill)","t":"Guardians of the Galaxy","a":"Chris Pratt","b":"Half-human galactic outlaw turned heroic leader of the Guardians.","m":"Holding an Infinity Stone with his bare hands alongside his crew to destroy Ronan.","s":["Quad-blasters","Jet boots","Creative tactical improvisation"],"w":["Emotional volatility","Lack of superhuman durability after losing Celestial power"],"sp":"7GVUmCP00eSsqc4tzj1sDD","tt":"Mr. Blue Sky"},{"id":"gamora","n":"Gamora","t":"Guardians of the Galaxy","a":"Zoe Saldaña","b":"The deadliest woman in the galaxy, trained by Thanos before joining the Guardians.","m":"Decapitating Thanos's forces and leading Ravagers in alternate timeline operations.","s":["Peak martial arts mastery","Sword proficiency","Superhuman agility"],"w":["Guarded emotions","Personal guilt over her adoptive father's actions"],"sp":"2hE5Lm5XOHR4t3xlhIFauP","tt":"Fooled Around And Fell In Love"},{"id":"drax","n":"Drax the Destroyer","t":"Guardians of the Galaxy","a":"Dave Bautista","b":"A warrior seeking vengeance whose intimidating physique conceals a warm heart.","m":"Brawling directly with Thanos on Titan and shielding his friends on Counter-Earth.","s":["Near-indestructible skin","Lethal dual dagger combat","Brute physical force"],"w":["Takes metaphors literally","Lacks strategic patience"],"sp":"1YLJVmuzeM2YSUkCCaTNUB","tt":"Dog Days Are Over"},{"id":"rocket","n":"Rocket Raccoon","t":"Guardians of the Galaxy","a":"Bradley Cooper","b":"A genetically altered cybernetic raccoon who is a master engineer and heavy-weapons expert.","m":"Building a God-killing weapon with Thor at Nidavellir and taking leadership of the Guardians.","s":["Weapon invention","Piloting expertise","Tactical battle planning"],"w":["Physical small frame without technology","Deep trauma regarding his creators"],"sp":"6JpjIy1M7oxvPJ3uVdUKTe","tt":"Creep - Acoustic"},{"id":"groot","n":"Groot","t":"Guardians of the Galaxy","a":"Vin Diesel","b":"A sentient tree-like organism capable of regenerating his body and forming wood weapons.","m":"Sacrificing himself with 'We are Groot' to save his friends in Xandar.","s":["Limb extension","Immense strength","Total body regeneration"],"w":["Susceptible to fire","Vulnerable to heavy industrial cutting weapons"],"sp":"2RlgNHKcydI9sayD2Df2xp","tt":"Mr. Blue Sky"},{"id":"nebula","n":"Nebula","t":"Guardians of the Galaxy","a":"Karen Gillan","b":"Cybernetically enhanced assassin turned vital Avenger and Guardian leader.","m":"Infiltrating the Sanctuary II and slaying her past alternate self to save the universe.","s":["Cybernetic self-repair","Mechanical strength","Master tactician"],"w":["Past psychological trauma","Vulnerable to direct electromagnetic pulse attacks"],"sp":"13Mzsb8VzRSZ5w3pM48cn6","tt":"The Rubberband Man"},{"id":"mantis","n":"Mantis","t":"Guardians of the Galaxy","a":"Pom Klementieff","b":"Empath with the ability to alter feelings and subdue cosmic entities.","m":"Putting the Mad Titan Thanos to sleep on Titan during the Infinity War.","s":["Empathic manipulation","Subduing powerful minds","Enhanced agility"],"w":["Soft-spoken combat style","Low physical defensive resistance"],"sp":"6vFN0uVMQxHofQFnNhGBq8","tt":"Guardians Inferno - From \"Guardians of the Galaxy Vol. 2\""},{"id":"yelena-belova","n":"Yelena Belova (White Widow)","t":"Thunderbolts","a":"Florence Pugh","b":"Elite Red Room assassin and sister to Natasha Romanoff, leading the Thunderbolts.","m":"Dropping into tactical missions with signature widow strikes and quips.","s":["Red Room combat mastery","Dual batons","Stealth infiltration"],"w":["Emotionally defensive","Vulnerable to ranged explosive attacks"],"sp":"5OXtqgjZzi1Kj9EJlg45t2","tt":"Thunderbolts*"},{"id":"bucky-barnes","n":"Bucky Barnes (Winter Soldier)","t":"Thunderbolts / Avengers","a":"Sebastian Stan","b":"WW2 hero turned cybernetic assassin, now congressman and team tactical anchor.","m":"Catching Captain America's shield mid-air with his Vibranium arm.","s":["Vibranium arm","Super-soldier physical conditioning","Weapon mastery"],"w":["Brainwashing trigger residue","Lingering guilt over past assassin missions"],"sp":"5VbZuUanVLWJBpgnjrPC5i","tt":"It's Bucky!"},{"id":"red-guardian","n":"Red Guardian (Alexei Shostakov)","t":"Thunderbolts","a":"David Harbour","b":"The Soviet Union's answer to Captain America, father figure to Yelena and Natasha.","m":"Catching a speeding vehicle and flexing super-soldier power to save his family.","s":["Enhanced super-soldier physical strength","Combat durability","Shield throwing"],"w":["Out of shape physical stamina","Overly boastful nature"],"sp":"3X7uFMzJrEE0sxn62qd8Ch","tt":"Nothing's Gonna Stop Us Now"},{"id":"ghost","n":"Ghost (Ava Starr)","t":"Thunderbolts","a":"Hannah John-Kamen","b":"Quantum-phasing operative capable of passing through solid physical matter.","m":"Infiltrating high-security facilities by phasing through solid walls and ambush striking.","s":["Molecular phasing","Invisibility","Hand-to-hand assassin skills"],"w":["Quantum instability pain without stabilization technology"],"sp":"5OXtqgjZzi1Kj9EJlg45t2","tt":"Thunderbolts*"},{"id":"us-agent","n":"U.S. Agent (John Walker)","t":"Thunderbolts","a":"Wyatt Russell","b":"Highly decorated soldier injected with Super Soldier Serum.","m":"Teaming up with Sam and Bucky to stop the Flag Smashers armored truck.","s":["Super-soldier physical strength","Tactical firearms mastery","Shield combat"],"w":["Hot temper","Psychological pressure under public scrutiny"],"sp":"5OXtqgjZzi1Kj9EJlg45t2","tt":"Thunderbolts*"},{"id":"doctor-doom","n":"Doctor Doom (Victor von Doom)","t":"Latveria / Multiverse Villains","a":"Robert Downey Jr.","b":"Monarch of Latveria whose formidable intellect matches his mastery of arcane magic and armor engineering.","m":"Overawing heroes across dimensions and seizing multiversal control with sovereign authority.","s":["Supreme intellect","Tech-magic integration","Impenetrable willpower","Energy manipulation"],"w":["Overwhelming arrogance","Refusal to acknowledge peers or rivals"],"sp":"3EOf7kzbJMJaJ3Q6ylZqKy","tt":"Doctor Doom Theme"},{"id":"sentry","n":"Sentry (Bob Reynolds)","t":"Thunderbolts / Cosmic","a":"Lewis Pullman","b":"Golden hero possessing the power of one million exploding suns, plagued by an inner shadow.","m":"Unleashing raw solar energy output capable of leveling entire military installations.","s":["Unlimited physical strength","Flight","Energy projection","God-like durability"],"w":["Psychological conflict with his dark alter-ego, the Void"],"sp":"5OXtqgjZzi1Kj9EJlg45t2","tt":"Thunderbolts*"},{"id":"the-punisher","n":"The Punisher (Frank Castle)","t":"Street-Level / Vigilantes","a":"Jon Bernthal","b":"Vigilante who wages a single-man war on crime using tactical warfare.","m":"Clearing a hallway full of armed mobsters in prison single-handedly.","s":["Extreme pain tolerance","Tactical military strategy","Firearms precision"],"w":["Baseline human physical durability","Relentless stubbornness"],"sp":"0rSJtqCSAkhKORRpJlk7pL","tt":"The Punisher Main Title"},{"id":"iron-man","n":"Iron Man (Tony Stark)","t":"Avengers","a":"Robert Downey Jr.","b":"Genius billionaire whose tech armor saved the universe.","m":"Executing the final Snap against Thanos's army: 'I am Iron Man.'","s":["Genius intellect","Nano-tech Mark 85 suit","Repulsor weapon systems"],"w":["Human mortality inside the suit","Past emotional PTSD"],"sp":"08mG3Y1vljYA6bvDt4Wqkj","tt":"Back In Black"},{"id":"captain-america-rogers","n":"Captain America (Steve Rogers)","t":"Avengers","a":"Chris Evans","b":"Living legend of WWII and leader of the Avengers.","m":"Summoning Mjolnir during the final showdown on Earth: 'Avengers... Assemble.'","s":["Vibranium shield","Peak super-soldier physical stats","Tactical leadership"],"w":["Human vulnerability to high-caliber cosmic energy"],"sp":"5SXsXjVJCWeJuf7FHvgBYR","tt":"The Avengers"},{"id":"thor","n":"Thor Odinson","t":"Avengers / Asgard","a":"Chris Hemsworth","b":"Asgardian God of Thunder armed with Stormbreaker.","m":"Arriving in Wakanda via Bifrost shouting 'Bring me Thanos!'","s":["Lightning manipulation","Flight with Stormbreaker","God-like physical strength"],"w":["Emotional grief","Prone to overconfidence in battle"],"sp":"7snQQk1zcKl8gZ92AnueZW","tt":"Sweet Child O' Mine"},{"id":"hulk","n":"Hulk (Bruce Banner)","t":"Avengers","a":"Mark Ruffalo","b":"Gamma-irradiated scientist who channels inner rage into immense strength.","m":"Executing the blip snap to return half the galaxy's population.","s":["Infinite physical strength scaling with anger","Regeneration","Gamma durability"],"w":["Mind-body internal friction","Past injury from Infinity Stones"],"sp":"5SXsXjVJCWeJuf7FHvgBYR","tt":"The Avengers"},{"id":"black-widow","n":"Black Widow (Natasha Romanoff)","t":"Avengers","a":"Scarlett Johansson","b":"Master spy, founding Avenger, and expert combatant.","m":"Sacrificing herself on Vormir so Clint could retrieve the Soul Stone.","s":["Widow bites","Master acrobat","Psychological interrogation expert"],"w":["Baseline human physical limits","Vulnerability to superhuman blows"],"sp":"5SXsXjVJCWeJuf7FHvgBYR","tt":"The Avengers"},{"id":"hawkeye","n":"Hawkeye (Clint Barton)","t":"Avengers","a":"Jeremy Renner","b":"World's greatest marksman who never misses a shot.","m":"Firing a trick arrow through the Chitauri wormhole without looking.","s":["Trick arrow arsenal","Superhuman archery precision","Ronin sword skills"],"w":["Baseline human durability","Limited quiver capacity"],"sp":"5SXsXjVJCWeJuf7FHvgBYR","tt":"The Avengers"},{"id":"captain-america-wilson","n":"Captain America (Sam Wilson)","t":"Avengers","a":"Anthony Mackie","b":"Former Falcon who embraced the shield to lead a new generation.","m":"Stopping a super-powered terrorist cell while giving a speech to world leaders.","s":["Vibranium suit and wings","Redwing drone","Master aerial combat"],"w":["No super-soldier serum enhancements"],"sp":"5SXsXjVJCWeJuf7FHvgBYR","tt":"The Avengers"},{"id":"war-machine","n":"War Machine (James Rhodes)","t":"Avengers","a":"Don Cheadle","b":"Decorated U.S. Air Force officer piloting heavily armed Stark combat armor.","m":"Carpet bombing Outrider forces during the Battle of Wakanda.","s":["Heavy artillery cannons","Wrist rockets","Flight speed","Armored plating"],"w":["Mechanical suit reliance","Spinal brace mobility dependence"],"sp":"5YnNWHKCJaJKwbagXDb5Uf","tt":"War Machine"},{"id":"ant-man","n":"Ant-Man (Scott Lang)","t":"Avengers","a":"Paul Rudd","b":"Master thief who uses Pym particles to shrink and expand at will.","m":"Turning into Giant-Man to punch down a Chitauri leviathan in Endgame.","s":["Mass manipulation","Quantum realm travel","Ant communication"],"w":["Suit power source dependency","Clumsy nature"],"sp":"6yNPVGljyzMYTxEhL6fLBg","tt":"Theme from Ant-Man"},{"id":"jean-grey","n":"Jean Grey","t":"Mutants","a":"Sadie Sink","b":"Jean Elaine Grey is a powerful psychic mutant who waged a one-woman campaign against Damage Control to find her captured sister Sara, possessing people to strike from the inside. Experimented on at the Damage Control Detention Center, she unlocked devastating telekinesis in her grief and rage before Spider-Man talked her back from the edge.","m":"Telling Bill Metzger \"the only hands that will wield this power... are mine\" as the detention center tears itself apart around her.","s":["Omega-level telepathy","Possession of multiple thralls at once","Rage-fueled telekinesis"],"w":["Power spikes with uncontrolled emotion","Driven by grief over her sister Sara"],"sp":"3GIu4yGiUgvDi9ERewkbIa","tt":"X-Men '97 Theme - From \"X-Men '97\""},{"id":"doctor-strange","n":"Doctor Strange (Stephen Strange)","t":"Masters of the Mystic Arts","a":"Benedict Cumberbatch","b":"Former neurosurgeon who became Master of the Mystic Arts.","m":"Bargaining with Dormammu in a time loop to save Earth.","s":["Eldritch magic","Mirror Dimension manipulation","Portals"],"w":["Human physical body vulnerability when spellcasting is interrupted"],"sp":"0HY36x94MbEBf0ZNw0eHsP","tt":"Main Titles"},{"id":"wong","n":"Wong","t":"Masters of the Mystic Arts","a":"Benedict Wong","b":"The current Sorcerer Supreme and guardian of ancient Kamar-Taj knowledge.","m":"Summoning sorcerer armies across the universe to Endgame's battlefield.","s":["Master sorcerer","Portal creation","Portal-decapitation techniques"],"w":["Strict code of ethics","Human physical limits"],"sp":"6R8vRt7SvdjlOQBthSmOCL","tt":"Hong Kong Kablooey"},{"id":"scarlet-witch","n":"Scarlet Witch (Wanda Maximoff)","t":"Avengers / Magic","a":"Elizabeth Olsen","b":"Nexus being capable of spontaneous reality alteration via Chaos Magic.","m":"Nearly tearing Thanos apart single-handedly in Endgame.","s":["Chaos magic","Reality warping","Telekinesis","Mind control"],"w":["Emotional instability","Darkhold corruptibility"],"sp":"53mmczr5bIsDSjiq3tao62","tt":"Wanda's Theme (End Credits from \"WandaVision\")"},{"id":"vision","n":"Vision","t":"Avengers","a":"Paul Bettany","b":"Vibranium synthetic android fueled by the Mind Stone.","m":"Phasing through Giant-Man to destroy internal suit systems.","s":["Density alteration","Solar beam blast","Vibranium body structure"],"w":["Vulnerable to weapons designed to disrupt internal phasing frequency"],"sp":"5SXsXjVJCWeJuf7FHvgBYR","tt":"The Avengers"},{"id":"loki","n":"Loki","t":"Asgard / TVA / Multiverse","a":"Tom Hiddleston","b":"God of Mischief who sacrificed his freedom to hold the Multiverse together as God of Stories.","m":"Grabbing dying timeline strands and creating the Multiversal Yggdrasil tree.","s":["Multiversal time-slipping","Illusion casting","Frost giant durability"],"w":["Past emotional trauma","Heavy burden of eternal solitary duty"],"sp":"5T7DUEeAj0hkMLTzIlDCRz","tt":"Loki Green Theme"},{"id":"captain-marvel","n":"Captain Marvel (Carol Danvers)","t":"Avengers / Cosmic","a":"Brie Larson","b":"Cosmic hero empowered by Tesseract energy.","m":"Flying through Thanos's flagship Sanctuary II and obliterating it.","s":["Binary energy mode","Light-speed flight","Photon blasts"],"w":["Over-reliance on energy absorption","Vulnerable to direct Power Stone contact"],"sp":"4CQ8uwWfH9hDCbwj4PUs58","tt":"Captain Marvel"},{"id":"shang-chi","n":"Shang-Chi","t":"Avengers / Ten Rings","a":"Simu Liu","b":"Martial arts master who inherited the legendary Ten Rings.","m":"Taming the Great Protector dragon and destroying the Dweller-in-Darkness.","s":["Ten Rings telekinetic energy control","Immortal combat skills"],"w":["Emotional attachment to family legacy","Mortal human defense without rings"],"sp":"3ROMQLV9N3HjrcqvV88dSP","tt":"Shang-Chi Main Theme"},{"id":"moon-knight","n":"Moon Knight (Marc Spector / Steven Grant)","t":"Midnight Sons / Gods","a":"Oscar Isaac","b":"Avatar of Khonshu, Egyptian god of the moon.","m":"Rewinding the night sky thousands of years to reveal star alignment.","s":["Suit regeneration","Crescent darts","Superhuman strength from Khonshu"],"w":["Dissociative Identity Disorder conflicts"],"sp":"65ICJM6KqFWou1ntTAv0Qk","tt":"Moon Knight"},{"id":"ms-marvel","n":"Ms. Marvel (Kamala Khan)","t":"Young Avengers / Mutants","a":"Iman Vellani","b":"Mutant teen hero who channels hard-light constructs via her family bangle.","m":"Creating massive hard-light steps across Jersey City roofs to save her friend.","s":["Hard-light shields and giant fists","Creative reflexes"],"w":["Inexperienced in high-stakes war","Dependent on bangle for light shaping"],"sp":"43mHckutQvJr49nT0UvRxy","tt":"Sage"},{"id":"she-hulk","n":"She-Hulk (Jennifer Walters)","t":"Avengers / Legal","a":"Tatiana Maslany","b":"High-powered defense lawyer who gained gamma powers from Bruce Banner.","m":"Breaking the fourth wall into Marvel Studios to rewrite her own show finale.","s":["Gamma physical strength","Fourth-wall meta awareness","High intellect"],"w":["Difficulty separating personal life from superhero publicity"],"sp":"2k2qC3o7QLhVzJXi8DxJ2t","tt":"She-Hulk: Attorney at Law - From \"She-Hulk: Attorney at Law\""},{"id":"black-panther-shuri","n":"Black Panther (Shuri)","t":"Wakanda / Avengers","a":"Letitia Wright","b":"Wakanda's genius chief scientist who recreated the Heart-Shaped Herb.","m":"Trapping Namor in a thermal drying jet to force his surrender.","s":["Vibranium panther suit","Sonic gauntlets","Top-tier engineering mind"],"w":["Physical strength lower than top-tier cosmic beings"],"sp":"2mjbf9ZvCoYqTi0RZ2FTUJ","tt":"Wakanda"},{"id":"black-panther-tchalla","n":"Black Panther (T'Challa)","t":"Wakanda / Avengers","a":"Chadwick Boseman","b":"King of Wakanda empowered by the Heart-Shaped Herb.","m":"Chasing down Bucky on foot at highway speeds in Bucharest.","s":["Vibranium kinetic suit","Herb-enhanced physical stats","Royal martial arts"],"w":["Vulnerable to high-frequency sonic blasts that overload vibranium"],"sp":"2mjbf9ZvCoYqTi0RZ2FTUJ","tt":"Wakanda"},{"id":"valkyrie","n":"Valkyrie (Brunnhilde)","t":"Asgard","a":"Tessa Thompson","b":"King of New Asgard and legendary Valkyrie warrior.","m":"Charging into battle riding her Pegasus wing-steed during Endgame.","s":["Asgardian physiology","Dragonfang sword combat","Veteran military tactics"],"w":["Past sorrow","Susceptible to heavy numerical bludgeoning"],"sp":"2A7qdr3UNP9Pxjcxa5Jj53","tt":"Ride of the Valkyries"},{"id":"namor","n":"Namor","t":"Talokan","a":"Tenoch Huerta","b":"Feathered Serpent God and ruler of the underwater kingdom of Talokan.","m":"Throwing a massive ocean ship like a spear into a Wakandan vessel.","s":["Ankle wings flight","Underwater speed","Vibranium spear mastery"],"w":["Dehydrates rapidly in high heat environments"],"sp":"1IOjlBPYqdB0j0CkrT72zt","tt":"Namor The Submariner Theme"},{"id":"korg","n":"Korg","t":"Asgard / Sakaar","a":"Taika Waititi","b":"A Kronan warrior made of rocks who serves as Thor's fiercely loyal, easygoing companion.","m":"Leading the Sakaaran gladiator uprising on Asgard while keeping the mood light.","s":["High physical durability","Dense rocky hide","Unwavering optimism"],"w":["Gullible","Lacks advanced tactical strategy"],"sp":"6FLwmdmW77N1Pxb1aWsZmO","tt":"Only Time"},{"id":"blade","n":"Blade","t":"Midnight Sons","a":"Wesley Snipes","b":"Legendary vampire hunter possessing all vampire strengths without their weaknesses.","m":"Hunting nocturnal threats in secret with silver weaponry.","s":["Dhampir strength","Swordsmanship","Immune to vampire bites"],"w":["Requires blood substitute serum to manage thirst"],"sp":"7cfH4PBHP8bNKpfmIrXgLD","tt":"The Original Theme from \"Blade\" - 2016 Remaster"},{"id":"thanos","n":"Thanos","t":"Cosmic Villains","a":"Josh Brolin","b":"The Mad Titan who sought universal balance through the Infinity Stones.","m":"Boxing the Hulk into submission without using any Infinity Stones.","s":["Immense physical strength","Double-bladed sword","Tactical mind"],"w":["Overconfident belief in his own destiny"],"sp":"51Amo7fyI2jL3sf2UgX75i","tt":"Infinity War"},{"id":"kingpin","n":"Kingpin (Wilson Fisk)","t":"Underworld / Street-Level","a":"Vincent D'Onofrio","b":"The ruthless crime lord who controls New York City's criminal underworld with brute physical force and political leverage.","m":"Ripping a car door off its hinges and overpowering opponents in hand-to-hand combat.","s":["Superhuman-like physical strength","Strategic mind","Immense financial/political influence"],"w":["Volatile temper","Vulnerability to sharp ranged strikes","Baseline human mortality"],"sp":"61dYvvfIRtIDFuqZypPAta","tt":"Cello Suite No. 1 in G Major, BWV 1007: I. Prélude"},{"id":"green-goblin","n":"Green Goblin (Norman Osborn)","t":"Multiverse Villains","a":"Willem Dafoe","b":"Unstable genius villain equipped with a goblin glider and pumpkin bombs.","m":"Power-bombing Spider-Man through multiple apartment floors while laughing.","s":["Superhuman strength","Pumpkin explosives","Glider mobility"],"w":["Psychotic split personality"],"sp":"2cDUJfn6Dj0bKzDbp4kqyA","tt":"Transformations"},{"id":"gambit","n":"Gambit (Remy LeBeau)","t":"Mutants / Resistance","a":"Channing Tatum","b":"Remy LeBeau, 'le diable blanc' — a kinetic-energy-manipulating mutant banished to the Void by the TVA, where he joined the Resistance against Cassandra Nova with no memory of his past life.","m":"Allying with Deadpool and Wolverine to storm Cassandra Nova's lair and escape the Void in Deadpool & Wolverine.","s":["Kinetic energy charging","Bō staff mastery","Card-throwing precision"],"w":["Needs physical contact to charge an object","Reckless gambler's instincts"],"sp":"492ceDtqmafb6QD1Xfhpmo","tt":"Like a Prayer - Choir Version From Deadpool & Wolverine"},{"id":"adam-warlock","n":"Adam Warlock","t":"Sovereign","a":"Will Poulter","b":"An engineered Sovereign perfect being with immense power and the temperament of a newborn.","m":"Punching through a spaceship hull mid-flight in a blaze of cosmic energy.","s":["Cosmic energy blasts","Flight","Near-invulnerable golden body"],"w":["Emotionally immature","Impulsive in combat"],"sp":"5zH710lFSLtkHbMkslLDjR","tt":"Crazy On You"},{"id":"ultron","n":"Ultron","t":"AI Villains","a":"James Spader","b":"AI created by Tony Stark that concluded humanity must be eradicated.","m":"Lifting the entire city of Sokovia into the atmosphere to drop as a meteor.","s":["Vibranium body","Hive-mind internet transfer","Magnetic beam blasts"],"w":["Vulnerable to combined energy streams (Thor + Vision + Iron Man)"],"sp":"2LFcQ2dSHzhBaqEo3citjw","tt":"Ultron's Theme - Epic Cinematic Version"},{"id":"killmonger","n":"Erik Killmonger","t":"Wakanda / Villains","a":"Michael B. Jordan","b":"Former Black Ops soldier who challenged T'Challa for the Wakandan throne.","m":"Defeating T'Challa in ritual combat at Warrior Falls.","s":["Golden Jaguar vibranium suit","Ruthless military tactics"],"w":["Consumed by revenge"],"sp":"0w7yUSxpQV3a3HqlprOQUs","tt":"Killmonger"},{"id":"cyclops","n":"Cyclops (Scott Summers)","t":"Mutants / X-Men","a":"James Marsden","b":"Field leader of the X-Men who fires concussive optic blasts he can only contain behind ruby quartz.","m":"Blasting Sabretooth clean off the Statue of Liberty.","s":["Concussive optic blasts","Tactical field leadership","Disciplined training"],"w":["Cannot switch his blasts off without his visor"],"sp":"3GIu4yGiUgvDi9ERewkbIa","tt":"X-Men '97 Theme - From \"X-Men '97\""},{"id":"high-evolutionary","n":"High Evolutionary","t":"Cosmic Villains","a":"Chukwudi Iwuji","b":"Mad scientist obsessed with forcibly engineering a perfect civilization.","m":"Gravity-blasting his entire command bridge in a fit of rage.","s":["Gravity control suits","Genetic synthesis mastery"],"w":["Obsessive perfectionism leading to erratic decisions"],"sp":"4UWTUwqUycwcvTBxVjxXqH","tt":"The High Evolutionary"},{"id":"mysterio","n":"Mysterio (Quentin Beck)","t":"Earth Villains","a":"Jake Gyllenhaal","b":"Disgruntled Stark employee using high-tech holographic projection drones.","m":"Trapping Spider-Man in an overwhelming, hallucinatory nightmare sequence.","s":["Mass scale optical illusion tech","Drone strike swarms"],"w":["Human physical body exposed if illusions fail"],"sp":"4GVyG4iljpmVOt1CR367o7","tt":"The Magical Mysterio Tour - from \"Spider-Man: Far from Home\" Soundtrack"},{"id":"mystique","n":"Mystique (Raven Darkholme)","t":"Brotherhood of Mutants","a":"Rebecca Romijn","b":"A shapeshifting infiltrator who can become anyone, down to voice and fingerprints.","m":"Impersonating Senator Kelly and Bobby Drake to unravel her enemies from inside.","s":["Perfect shapeshifting","Elite hand-to-hand combat","Espionage"],"w":["Baseline durability","Disguise fails under telepathic scrutiny"],"sp":"3GIu4yGiUgvDi9ERewkbIa","tt":"X-Men '97 Theme - From \"X-Men '97\""},{"id":"professor-x","n":"Professor X (Charles Xavier)","t":"Mutants / X-Men","a":"Patrick Stewart","b":"The world's most powerful telepath and founder of the school that shelters mutantkind.","m":"Freezing an entire hostile crowd mid-motion with a single thought.","s":["Unmatched telepathy","Cerebro amplification","Strategic mind"],"w":["Physically frail","Vulnerable to psychic backlash"],"sp":"3GIu4yGiUgvDi9ERewkbIa","tt":"X-Men '97 Theme - From \"X-Men '97\""},{"id":"magneto","n":"Magneto (Erik Lehnsherr)","t":"Brotherhood of Mutants","a":"Sir Ian McKellen","b":"Master of magnetism and mutant supremacist forged by the horrors of his childhood.","m":"Ripping the Golden Gate Bridge from its foundations and walking it across the bay.","s":["Total metal manipulation","Magnetic force fields","Flight"],"w":["Powerless against non-metallic attacks","Plastic prisons"],"sp":"3GIu4yGiUgvDi9ERewkbIa","tt":"X-Men '97 Theme - From \"X-Men '97\""},{"id":"daredevil","n":"Daredevil (Matt Murdock)","t":"Defenders","a":"Charlie Cox","b":"A blind lawyer by day whose radar sense makes him Hell's Kitchen's fearless protector by night.","m":"Fighting through an entire hallway of thugs in one unbroken, exhausted brawl.","s":["Radar sense","Billy club mastery","Peak martial arts"],"w":["Overwhelmed by extreme noise","Human durability"],"sp":"4t20umh0eSuYstasrSl2HV","tt":"Main Title"}];
+const ROUND_NAMES = ["Round of 64", "Round of 32", "Sweet 16", "Elite 8", "Final 4", "Championship"];
+const ROUND_SHORT = ["R64", "R32", "S16", "E8", "F4", "Final"];
+const BY_ID = new Map(CHARS.map((c) => [c.id, c]));
+const INDEX_BY_ID = new Map(CHARS.map((c, i) => [c.id, i]));
+const img = (c) => `characters/${c.id}.webp`;
+
+const ICON = {
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+  ff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 19 9-7-9-7v14zM2 19l9-7-9-7v14z"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>',
+  eraser: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21M22 21H7M5 11l9 9"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+  crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zM5 20h14"/></svg>',
+  music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4"/></svg>',
+  dice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01"/></svg>',
+  swords: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M9.5 6.5 21 18v3h-3l-1-1"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3zM12 9v4M12 17h.01"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:-2px"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17c0 .6-.5 1-1 1.2C7.8 18.8 7 20.2 7 22M14 14.7V17c0 .6.5 1 1 1.2 1.2.6 2 2 2 3.8M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>',
+};
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/* ---------- storage (per-viewer conveniences; the page works without it) ---------- */
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+  del(key) { try { localStorage.removeItem(key); } catch {} },
+};
+
+/* ---------- tournament logic ---------- */
+function shuffle(items) {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
+}
+function emptyRounds() {
+  return Array.from({ length: 6 }, (_, r) => Array.from({ length: 32 >> r }, () => ({ a: null, b: null, w: null })));
+}
+function createBracket() {
+  const seeds = shuffle(CHARS);
+  const rounds = emptyRounds();
+  rounds[0].forEach((m, i) => { m.a = seeds[i * 2]; m.b = seeds[i * 2 + 1]; });
+  return rounds;
+}
+const clone = (rounds) => rounds.map((round) => round.map((m) => ({ ...m })));
+const winnerOf = (m) => (!m.w ? null : m.a?.id === m.w ? m.a : m.b?.id === m.w ? m.b : null);
+function propagate(rounds) {
+  const next = clone(rounds);
+  for (let r = 0; r < next.length - 1; r++) {
+    next[r + 1].forEach((m, i) => {
+      m.a = winnerOf(next[r][i * 2]);
+      m.b = winnerOf(next[r][i * 2 + 1]);
+      if (m.w && m.a?.id !== m.w && m.b?.id !== m.w) m.w = null;
+    });
+  }
+  return next;
+}
+const isComplete = (round) => round.every((m) => m.w);
+const isReady = (round) => round.every((m) => m.a && m.b);
+function currentRound(rounds) { for (let r = 0; r < rounds.length; r++) if (!isComplete(rounds[r])) return r; return rounds.length - 1; }
+const championOf = (rounds) => winnerOf(rounds[5][0]);
+function runnerUpOf(rounds) { const f = rounds[5][0]; const c = winnerOf(f); return c ? (f.a.id === c.id ? f.b : f.a) : null; }
+const picksMade = (rounds) => rounds.flat().filter((m) => m.w).length;
+function results(rounds) {
+  return rounds.flatMap((round, r) => round.flatMap((m) => {
+    const w = winnerOf(m); const l = w && (m.a.id === w.id ? m.b : m.a);
+    return w && l ? [{ round: r, winner: w, loser: l }] : [];
+  }));
+}
+function victoryPath(rounds, id) {
+  return rounds.flatMap((round, r) => {
+    const m = round.find((x) => x.w === id);
+    return m ? [{ round: r, opponent: m.a.id === id ? m.b : m.a }] : [];
+  });
+}
+function coinFlip(rounds, r) { rounds[r].forEach((m) => { if (!m.w && m.a && m.b) m.w = (Math.random() < 0.5 ? m.a : m.b).id; }); }
+
+/* Bracket code: version, roster size, 64 seed indexes, then 2 bits per match (0 open, 1 top, 2 bottom). Hex so it fits in a plain #name. */
+function encode(rounds) {
+  const bytes = new Uint8Array(2 + 64 + 16);
+  bytes[0] = 1; bytes[1] = CHARS.length;
+  rounds[0].forEach((m, i) => { bytes[2 + i * 2] = INDEX_BY_ID.get(m.a.id); bytes[3 + i * 2] = INDEX_BY_ID.get(m.b.id); });
+  let bit = 0;
+  rounds.forEach((round) => round.forEach((m) => {
+    const p = !m.w ? 0 : m.w === m.a?.id ? 1 : 2;
+    bytes[66 + (bit >> 3)] |= p << (bit & 7);
+    bit += 2;
+  }));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+function decode(code) {
+  if (typeof code !== "string" || !/^[0-9a-f]{164}$/i.test(code.trim())) return null;
+  const bytes = Uint8Array.from(code.trim().match(/../g), (h) => parseInt(h, 16));
+  if (bytes[0] !== 1 || bytes[1] !== CHARS.length) return null;
+  const seeds = Array.from(bytes.slice(2, 66));
+  if (new Set(seeds).size !== 64 || seeds.some((i) => i >= CHARS.length)) return null;
+  let rounds = emptyRounds();
+  rounds[0].forEach((m, i) => { m.a = CHARS[seeds[i * 2]]; m.b = CHARS[seeds[i * 2 + 1]]; });
+  let bit = 0;
+  for (let r = 0; r < 6; r++) {
+    rounds[r].forEach((m) => {
+      const p = (bytes[66 + (bit >> 3)] >> (bit & 7)) & 3;
+      if (p === 1 && m.a) m.w = m.a.id;
+      if (p === 2 && m.b) m.w = m.b.id;
+      bit += 2;
+    });
+    rounds = propagate(rounds);
+  }
+  return rounds;
+}
+
+/* ---------- factions ---------- */
+const factionsOf = (c) => c.t.split("/").map((s) => s.trim());
+const FACTIONS = (() => {
+  const counts = new Map();
+  CHARS.forEach((c) => factionsOf(c).forEach((f) => counts.set(f, (counts.get(f) || 0) + 1)));
+  return [...counts].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([f]) => f);
+})();
+
+/* ---------- state ---------- */
+const state = {
+  view: "bracket",
+  rounds: decode(store.get("mcu64:current", "")) || createBracket(),
+  mode: "matchups",
+  viewRound: null,
+  review: false,
+  fromShare: false,
+  history: store.get("mcu64:history", []).filter((h) => h && decode(h.code)),
+  q: "", faction: null, sort: "name",
+  vsA: "iron-man", vsB: "thanos",
+  confirmClear: false,
+};
+const save = () => store.set("mcu64:current", encode(state.rounds));
+
+/* ---------- theme songs (Spotify iFrame API) ---------- */
+/* One controller lives for the whole visit. Phones only allow playback to start inside a tap,
+   so playTheme must be called straight from a click handler. */
+const player = { ctrl: null, now: null };
+function initPlayer() {
+  window.onSpotifyIframeApiReady = (api) => {
+    const first = CHARS.find((c) => c.sp);
+    api.createController(document.getElementById("spotify-host"), { uri: `spotify:track:${first.sp}`, width: "100%", height: 80 }, (ctrl) => {
+      player.ctrl = ctrl;
+      if (player.now) playTheme(player.now);
+    });
+  };
+  const script = document.createElement("script");
+  script.src = "https://open.spotify.com/embed/iframe-api/v1";
+  script.async = true;
+  document.body.appendChild(script);
+}
+function playTheme(c) {
+  if (!c?.sp) return;
+  const same = player.now?.id === c.id;
+  player.now = c;
+  document.getElementById("player-label").textContent = `${c.n} — ${c.tt || "Theme song"}`;
+  document.getElementById("player").classList.remove("off");
+  document.body.classList.add("playing");
+  try {
+    if (!player.ctrl) return; // starts once the controller is ready
+    if (same) player.ctrl.resume(); else { player.ctrl.loadUri(`spotify:track:${c.sp}`); player.ctrl.play(); }
+  } catch {}
+  syncMusicButtons();
+}
+function stopTheme() {
+  player.now = null;
+  document.getElementById("player").classList.add("off");
+  document.body.classList.remove("playing");
+  try { player.ctrl?.pause(); } catch {}
+  syncMusicButtons();
+}
+function syncMusicButtons() {
+  document.querySelectorAll("[data-act=theme]").forEach((b) => b.setAttribute("aria-pressed", String(player.now?.id === b.dataset.id)));
+}
+
+/* ---------- actions ---------- */
+function commit(next) {
+  const before = championOf(state.rounds);
+  state.rounds = next;
+  save();
+  const champ = championOf(next);
+  if (champ && champ.id !== before?.id) crowned(next, champ);
+  render();
+}
+function crowned(rounds, champ) {
+  state.review = false;
+  playTheme(champ);
+  const code = encode(rounds);
+  if (state.history.some((h) => h.code === code)) return;
+  state.history = [{ code, championId: champ.id, runnerUpId: runnerUpOf(rounds)?.id || null, at: new Date().toISOString() }, ...state.history].slice(0, 100);
+  store.set("mcu64:history", state.history);
+  confetti();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+const actions = {
+  pick(el) {
+    const r = +el.dataset.r, m = +el.dataset.m, id = el.dataset.id;
+    const draft = clone(state.rounds);
+    draft[r][m].w = draft[r][m].w === id ? null : id;
+    const prevRound = currentRound(state.rounds);
+    state.viewRound = null;
+    commit(propagate(draft));
+    if (state.mode === "matchups" && currentRound(state.rounds) !== prevRound && !championOf(state.rounds)) window.scrollTo({ top: 0, behavior: "smooth" });
+  },
+  simRound() {
+    const r = currentRound(state.rounds);
+    if (!isReady(state.rounds[r])) return;
+    const draft = clone(state.rounds); coinFlip(draft, r);
+    state.viewRound = null;
+    commit(propagate(draft));
+  },
+  simAll() {
+    let draft = clone(state.rounds);
+    for (let r = 0; r < 6; r++) { coinFlip(draft, r); draft = propagate(draft); }
+    state.viewRound = null;
+    commit(draft);
+  },
+  reshuffle() { state.rounds = createBracket(); state.viewRound = null; state.review = false; state.fromShare = false; save(); render(); },
+  clearPicks() {
+    const draft = clone(state.rounds); draft.forEach((round) => round.forEach((m) => (m.w = null)));
+    state.viewRound = null; state.review = false; commit(propagate(draft));
+  },
+  toggleMode() { state.mode = state.mode === "matchups" ? "bracket" : "matchups"; render(); },
+  round(el) { state.viewRound = +el.dataset.r; render(); },
+  review() { state.review = true; state.mode = "bracket"; render(); },
+  backToChamp() { state.review = false; render(); },
+  async share() {
+    const code = encode(state.rounds);
+    await copy(`${location.origin}${location.pathname}#b-${code}`, "Bracket link copied. Anyone who opens it sees your exact picks.");
+  },
+  async copySummary() {
+    const c = championOf(state.rounds);
+    const lines = ["MCU 64 — Tournament Summary", `Champion: ${c.n}`, `Team: ${c.t}`, "", "Path to victory:",
+      ...victoryPath(state.rounds, c.id).map((s) => `  ${ROUND_NAMES[s.round]}: defeated ${s.opponent.n}`), "", `Best MCU moment: ${c.m}`, "", `Bracket code: ${encode(state.rounds)}`];
+    await copy(lines.join("\n"), "Summary copied to your clipboard");
+  },
+  info(el) { openDetail(BY_ID.get(el.dataset.id)); },
+  theme(el) { const c = BY_ID.get(el.dataset.id); player.now?.id === c.id ? stopTheme() : playTheme(c); },
+  stopTheme() { stopTheme(); },
+  closeDetail() { document.getElementById("detail").close(); },
+  faction(el) { state.faction = el.dataset.f || null; render(); },
+  sort(el) { state.sort = el.dataset.s; render(); },
+  compare(el) { state.vsA = el.dataset.id; if (state.vsB === state.vsA) state.vsB = state.vsA === "thanos" ? "iron-man" : "thanos"; go("versus"); },
+  swap() { [state.vsA, state.vsB] = [state.vsB, state.vsA]; render(); },
+  randomPair() { const [a, b] = shuffle(CHARS); state.vsA = a.id; state.vsB = b.id; render(); },
+  open(el) { loadBracket(el.dataset.code, false); go("bracket"); },
+  async copyCode(el) { await copy(el.dataset.code, "Bracket code copied"); },
+  loadCode() {
+    const input = document.getElementById("code-input");
+    const raw = (input?.value || "").trim().replace(/^.*#b-/, "");
+    if (!decode(raw)) { toast("That code isn't a valid MCU 64 bracket. Check that you copied all 164 characters."); return; }
+    loadBracket(raw, true); go("bracket");
+  },
+  askClear() { state.confirmClear = true; render(); },
+  cancelClear() { state.confirmClear = false; render(); },
+  doClear() { state.history = []; state.confirmClear = false; store.del("mcu64:history"); render(); toast("History cleared"); },
+};
+function loadBracket(code, fromShare) {
+  const rounds = decode(code); if (!rounds) return false;
+  state.rounds = rounds; state.fromShare = fromShare; state.viewRound = null; state.review = false; save();
+  return true;
+}
+async function copy(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); }
+  catch { toast("Your browser blocked copying. Use Copy code on the My History page instead."); }
+}
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+}
+function confetti() {
+  const box = document.createElement("div"); box.className = "confetti"; box.setAttribute("aria-hidden", "true");
+  const colors = ["var(--red)", "var(--gold)", "var(--cyan)", "var(--fg)"];
+  for (let i = 0; i < 90; i++) {
+    const p = document.createElement("i");
+    p.style.left = `${Math.random() * 100}%`; p.style.background = colors[i % 4];
+    p.style.animationDuration = `${2.6 + Math.random() * 2}s`; p.style.animationDelay = `${Math.random() * 1.2}s`;
+    p.style.setProperty("--r", `${Math.random() * 720 - 360}deg`);
+    box.appendChild(p);
+  }
+  document.body.appendChild(box); setTimeout(() => box.remove(), 6000);
+}
+function spotify(c, cls = "btn btn-line btn-sm") {
+  return c.sp ? `<button class="${cls}" data-act="theme" data-id="${c.id}" aria-pressed="${player.now?.id === c.id}">${ICON.music} Play ${esc(c.tt || "theme song")}</button>` : "";
+}
+
+/* ---------- views ---------- */
+function viewBracket() {
+  const { rounds } = state;
+  const round = currentRound(rounds);
+  const active = state.viewRound ?? round;
+  const champ = championOf(rounds);
+  const made = picksMade(rounds);
+  let html = `
+    <section class="page-head">
+      <p class="eyebrow">Single elimination</p>
+      <h1><em>64</em> Bracket</h1>
+      <p class="lede">Sixty-four Marvel characters. Six rounds. One champion. Tap a character to send them through, the info button for their bio, or the music note to hear their theme song. Your picks save automatically.</p>
+    </section>
+    <div class="toolbar">
+      <button class="btn btn-primary" data-act="toggleMode">${state.mode === "matchups" ? ICON.grid + " Bracket view" : ICON.list + " Matchup view"}</button>
+      <button class="btn btn-ghost" data-act="reshuffle">${ICON.shuffle} New tournament</button>
+      <button class="btn btn-line" data-act="clearPicks" ${made ? "" : "disabled"}>${ICON.eraser} Clear picks</button>
+      <button class="btn btn-line" data-act="simRound" ${champ ? "disabled" : ""}>${ICON.bolt} Auto-simulate round</button>
+      <button class="btn btn-line" data-act="simAll" ${champ ? "disabled" : ""}>${ICON.ff} Simulate to final</button>
+      <button class="btn btn-line" data-act="share">${ICON.share} Share bracket</button>
+    </div>
+    <div class="progress">
+      <div class="progress-meta"><span>${champ ? "Champion crowned" : ROUND_NAMES[round]}</span><span>${made} / 63 picks</span></div>
+      <div class="bar" role="progressbar" aria-label="Tournament progress" aria-valuemin="0" aria-valuemax="63" aria-valuenow="${made}"><i style="width:${(made / 63) * 100}%"></i></div>
+      ${state.fromShare ? `<p class="note">Loaded from a shared bracket. Any picks you change are saved as your own.</p>` : ""}
+    </div>`;
+
+  if (champ && !state.review) return html + viewChampion(champ);
+  if (champ) html += `<div class="toolbar"><button class="btn btn-gold" data-act="backToChamp">${ICON.crown} Back to champion</button></div>`;
+
+  html += `<nav class="rounds" aria-label="Tournament rounds">${ROUND_NAMES.map((name, i) => {
+    const cls = ["round-tab", i === active ? "active" : isComplete(rounds[i]) ? "done" : ""].join(" ");
+    return `<button class="${cls}" data-act="round" data-r="${i}" ${i > round ? "disabled" : ""} ${i === active ? 'aria-current="true"' : ""}>${name}</button>`;
+  }).join("")}</nav>`;
+
+  if (state.mode === "bracket") return html + viewBracketTree();
+
+  html += `<div class="matches">${rounds[active].map((m, i) => `
+    <section class="match" aria-label="Match ${i + 1}">
+      <p class="match-label">Match ${i + 1}</p>
+      ${fighter(m.a, m, active, i)}
+      <p class="vs" aria-hidden="true">VS</p>
+      ${fighter(m.b, m, active, i)}
+    </section>`).join("")}</div>`;
+  return html;
+}
+function fighter(c, m, r, i) {
+  if (!c) return `<div class="awaiting">Awaiting winner</div>`;
+  const st = !m.w ? "" : m.w === c.id ? "win" : "lose";
+  return `<div class="fighter ${st}">
+    <button class="portrait" data-act="info" data-id="${c.id}" aria-label="About ${esc(c.n)}"><img src="${img(c)}" alt="" loading="lazy"></button>
+    <button class="pick" data-act="pick" data-r="${r}" data-m="${i}" data-id="${c.id}" aria-pressed="${st === "win"}">
+      <span class="name">${esc(c.n)}</span>
+      <span class="team">${esc(c.t)}</span>
+      <span class="actor">${esc(c.a)}</span>
+      ${st === "win" ? `<span class="advances">✓ Advances</span>` : ""}
+    </button>
+    <button class="info" data-act="info" data-id="${c.id}" aria-label="More about ${esc(c.n)}">${ICON.info}</button>
+    ${c.sp ? `<button class="music" data-act="theme" data-id="${c.id}" aria-pressed="${player.now?.id === c.id}" aria-label="Play theme song for ${esc(c.n)}" title="${esc(c.tt || "Theme song")}">${ICON.music}</button>` : ""}
+  </div>`;
+}
+function viewBracketTree() {
+  const SLOT = 72;
+  const cols = state.rounds.map((round, r) => {
+    const col = `<div class="b-col"><h3>${ROUND_SHORT[r]}</h3>${round.map((m, i) => `
+      <div class="b-slot" style="height:${SLOT * 2 ** r}px"><div class="b-match">${[m.a, m.b].map((c) =>
+        `<button ${c ? `data-act="pick" data-r="${r}" data-m="${i}" data-id="${c.id}"` : "disabled"} class="${c && m.w === c.id ? "won" : ""}" title="${esc(c?.n || "")}">${esc(c?.n || "—")}</button>`).join("")}</div></div>`).join("")}</div>`;
+    const links = r < 5 ? `<div class="b-link" aria-hidden="true">${Array.from({ length: round.length / 2 }, () =>
+      `<svg width="24" height="${SLOT * 2 ** (r + 1)}" viewBox="0 0 24 100" preserveAspectRatio="none"><path d="M0 25H12V75H0M12 50H24" fill="none" stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke"/></svg>`).join("")}</div>` : "";
+    return col + links;
+  }).join("");
+  return `<p class="bracket-hint">Scroll to explore the full bracket. Tap a name to advance them.</p><div class="bracket"><div class="bracket-grid">${cols}</div></div>`;
+}
+function viewChampion(c) {
+  const path = victoryPath(state.rounds, c.id);
+  const titles = state.history.filter((h) => h.championId === c.id).length;
+  return `<article class="champion">
+    <div class="champion-band">${ICON.crown.replace("<svg", '<svg width="16" height="16" style="vertical-align:-2px;margin-right:6px"')}Champion</div>
+    <div class="champion-art"><img src="${img(c)}" alt="${esc(c.n)}"></div>
+    <div class="champion-body">
+      <div><h2>${esc(c.n)}</h2><p class="team">${esc(c.t)}</p></div>
+      <div class="panel gold"><h3>Best MCU moment</h3><p>${esc(c.m)}</p></div>
+      <p>${ICON.trophy} <span class="trophy">${plural(titles, "title", "titles")}</span> for ${esc(c.n)} in your tournaments. <a href="#leaderboard">See your leaderboard</a></p>
+      <div class="panel"><h3>Path to victory</h3><ol class="path">${path.map((s) => `<li><span>${ROUND_SHORT[s.round]}</span><span>Defeated <b>${esc(s.opponent.n)}</b></span></li>`).join("")}</ol></div>
+      <div class="row">
+        ${spotify(c, "btn btn-gold")}
+        <button class="btn btn-ghost" data-act="share">${ICON.share} Share bracket</button>
+        <button class="btn btn-ghost" data-act="copySummary">Copy summary</button>
+        <button class="btn btn-line" data-act="review">${ICON.grid} View full bracket</button>
+        <button class="btn btn-line" data-act="reshuffle">${ICON.shuffle} New tournament</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function myTitles() { const m = new Map(); state.history.forEach((h) => m.set(h.championId, (m.get(h.championId) || 0) + 1)); return m; }
+function myMatchWins() { const m = new Map(); state.history.forEach((h) => results(decode(h.code)).forEach(({ winner }) => m.set(winner.id, (m.get(winner.id) || 0) + 1))); return m; }
+
+function viewCharacters() {
+  const mine = myTitles();
+  const q = state.q.trim().toLowerCase();
+  const list = CHARS.filter((c) => (!state.faction || factionsOf(c).includes(state.faction)) && (!q || `${c.n} ${c.a} ${c.t}`.toLowerCase().includes(q)))
+    .sort((a, b) => {
+      const byName = a.n.localeCompare(b.n);
+      if (state.sort === "mine") return (mine.get(b.id) || 0) - (mine.get(a.id) || 0) || byName;
+      return byName;
+    });
+  return `<section class="page-head"><p class="eyebrow">The roster</p><h1>Characters</h1>
+      <p class="lede">All ${CHARS.length} contenders in the bracket. Tap anyone for their bio, best MCU moment, strengths, weaknesses and theme song.</p></section>
+    <div class="filters">
+      <label class="search">${ICON.search}<input id="char-search" type="search" placeholder="Search by character, actor or team" aria-label="Search characters" value="${esc(state.q)}"></label>
+      <div class="seg" role="group" aria-label="Sort">${[["name", "A–Z"], ["mine", "My champions"]].map(([s, l]) =>
+        `<button data-act="sort" data-s="${s}" aria-pressed="${state.sort === s}">${l}</button>`).join("")}</div>
+    </div>
+    <div class="chips" role="group" aria-label="Filter by team">${[null, ...FACTIONS].map((f) =>
+      `<button class="chip" data-act="faction" data-f="${esc(f || "")}" aria-pressed="${state.faction === f}">${esc(f || "All teams")}</button>`).join("")}</div>
+    <p class="count" id="char-count">Showing ${list.length} of ${CHARS.length}</p>
+    ${list.length ? `<ul class="grid">${list.map((c) => `<li class="tile">
+      <button data-act="info" data-id="${c.id}" aria-label="About ${esc(c.n)}"><img src="${img(c)}" alt="" loading="lazy">
+        <span class="meta"><span class="name">${esc(c.n)}</span><span class="team">${esc(c.t)}</span><span class="actor">${esc(c.a)}</span></span></button>
+      <footer><span title="Your titles" class="${mine.get(c.id) ? "trophy" : ""}">${ICON.trophy} ${plural(mine.get(c.id) || 0, "title", "titles")}</span>
+        <button data-act="compare" data-id="${c.id}">Compare</button></footer></li>`).join("")}</ul>`
+      : `<p class="status">No characters match that search.</p>`}`;
+}
+
+function viewVersus() {
+  const a = BY_ID.get(state.vsA), b = BY_ID.get(state.vsB);
+  const sorted = CHARS.slice().sort((x, y) => x.n.localeCompare(y.n));
+  const select = (id, val, other, label) => `<label for="${id}">${label}<select class="field" id="${id}">${sorted.map((c) =>
+    `<option value="${c.id}" ${c.id === val ? "selected" : ""} ${c.id === other ? "disabled" : ""}>${esc(c.n)}</option>`).join("")}</select></label>`;
+  const meetings = state.history.flatMap((h) => results(decode(h.code)).filter((r) =>
+    (r.winner.id === a.id && r.loser.id === b.id) || (r.winner.id === b.id && r.loser.id === a.id)).map((r) => ({ ...r, at: h.at })));
+  const aw = meetings.filter((m) => m.winner.id === a.id).length, bw = meetings.length - aw;
+  const shared = factionsOf(a).filter((f) => factionsOf(b).includes(f));
+  const mine = myTitles(), mw = myMatchWins();
+  const card = (c) => `<article class="card"><div class="card-art"><img src="${img(c)}" alt="${esc(c.n)}"></div><div class="card-body">
+      <div><h2>${esc(c.n)}</h2><p class="team">${esc(c.t)}</p><p class="actor">Played by ${esc(c.a)}</p></div>
+      <div class="stats2"><div class="stat"><p class="v trophy">${mine.get(c.id) || 0}</p><p class="l">Your titles</p></div>
+        <div class="stat"><p class="v">${mw.get(c.id) || 0}</p><p class="l">Your match wins</p></div></div>
+      <p class="actor" style="white-space:normal">${esc(c.b)}</p>
+      <h3 class="sub-h">${ICON.swords} Strengths</h3><ul class="dots">${c.s.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
+      <h3 class="sub-h">${ICON.alert} Weaknesses</h3><ul class="dots red">${c.w.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
+      <div class="panel gold"><h3>Best MCU moment</h3><p>${esc(c.m)}</p></div>
+      ${c.sp ? `<div class="row">${spotify(c)}</div>` : ""}
+    </div></article>`;
+  return `<section class="page-head"><p class="eyebrow">Head-to-head</p><h1>Versus</h1><p class="lede">Settle the debate. Put any two characters side by side.</p></section>
+    <div class="vs-pickers">${select("vs-a", a.id, b.id, "Left corner")}
+      <div class="mid"><button class="btn btn-line btn-icon" data-act="swap" aria-label="Swap characters" title="Swap">${ICON.swap}</button>
+        <button class="btn btn-line btn-icon" data-act="randomPair" aria-label="Random matchup" title="Random matchup">${ICON.dice}</button></div>
+      ${select("vs-b", b.id, a.id, "Right corner")}</div>
+    <section class="panel record"><h3>Your head-to-head record</h3>
+      ${meetings.length ? `<p class="score"><span class="${aw >= bw ? "lead" : ""}">${aw}</span> – <span class="${bw >= aw ? "lead" : ""}">${bw}</span></p>
+        <ul class="path" style="justify-items:center">${meetings.slice(0, 5).map((m) => `<li style="display:block">${ROUND_NAMES[m.round]}: <b>${esc(m.winner.n)}</b> won · ${new Date(m.at).toLocaleDateString()}</li>`).join("")}</ul>`
+        : `<p class="actor" style="white-space:normal">These two haven't met in any bracket you've finished yet.</p>`}
+      ${shared.length ? `<p class="team" style="white-space:normal">Teammates: both fight for ${esc(shared.join(" & "))}</p>` : ""}
+    </section>
+    <div class="duel">${card(a)}${card(b)}</div>`;
+}
+
+function viewLeaderboard() {
+  const titles = myTitles(), wins = myMatchWins();
+  const total = state.history.length;
+  const rows = CHARS.map((c) => ({ c, n: titles.get(c.id) || 0, w: wins.get(c.id) || 0 })).sort((x, y) => y.n - x.n || y.w - x.w || x.c.n.localeCompare(y.c.n));
+  return `<section class="page-head"><p class="eyebrow">Your all-time</p><h1>Champion Leaderboard</h1>
+      <p class="lede"><b>${total}</b> ${total === 1 ? "tournament" : "tournaments"} completed in this browser. Ties are broken by total match wins.</p></section>
+    ${total === 0 ? `<p class="status">No titles yet. Finish a tournament to put the first one on the board.</p>` : ""}
+    <div class="table-wrap"><table><thead><tr><th>#</th><th>Character</th><th class="num">Titles</th><th class="num">Match wins</th><th class="num">Share</th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr><td class="rank ${r.n > 0 && i < 3 ? "m" + (i + 1) : ""}">${i + 1}</td>
+        <td><div class="who"><img src="${img(r.c)}" alt="" loading="lazy"><div><p>${esc(r.c.n)}</p><p class="team">${esc(r.c.t)}</p></div></div></td>
+        <td class="num">${r.n}</td><td class="num">${r.w}</td><td class="num actor">${total ? ((r.n / total) * 100).toFixed(1) + "%" : "—"}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+function viewHistory() {
+  const h = state.history;
+  const loader = `<div class="panel" style="margin-top:24px"><h3>Open a bracket code</h3><p class="actor" style="white-space:normal">Paste a bracket link or code someone shared with you to load their exact picks.</p>
+    <div class="loader"><input id="code-input" aria-label="Bracket code" placeholder="Bracket link or code"><button class="btn btn-primary" data-act="loadCode">Open bracket</button></div></div>`;
+  const head = `<section class="page-head"><p class="eyebrow">This browser</p><h1>My History</h1><p class="lede">Every tournament you finish is saved in this browser so you can revisit or share it.</p></section>`;
+  if (!h.length) return head + `<div class="empty"><p>No finished tournaments yet.</p><a class="btn btn-primary" href="#bracket">Start picking</a></div>` + loader;
+
+  const titles = myTitles();
+  const wins = new Map(), apps = new Map();
+  h.forEach((e) => results(decode(e.code)).forEach(({ winner, loser }) => {
+    wins.set(winner.id, (wins.get(winner.id) || 0) + 1);
+    apps.set(winner.id, (apps.get(winner.id) || 0) + 1); apps.set(loser.id, (apps.get(loser.id) || 0) + 1);
+  }));
+  const top = (m) => [...m].sort((x, y) => y[1] - x[1])[0];
+  const fav = top(titles), most = top(wins);
+  const rates = [...apps].filter(([, n]) => n >= 3).map(([id, n]) => ({ id, n, r: (wins.get(id) || 0) / n })).sort((x, y) => y.r - x.r || y.n - x.n).slice(0, 5);
+  return head + `
+    <section class="stats4">
+      <div class="stat"><p class="v">${h.length}</p><p class="l">Tournaments</p></div>
+      <div class="stat"><p class="v">${titles.size}</p><p class="l">Different champions</p></div>
+      <div class="stat"><p class="v">${esc(BY_ID.get(fav[0]).n)}</p><p class="s">${plural(fav[1], "title", "titles")}</p><p class="l">Favorite champion</p></div>
+      <div class="stat"><p class="v">${esc(BY_ID.get(most[0]).n)}</p><p class="s">${plural(most[1], "win", "wins")}</p><p class="l">Most match wins</p></div>
+    </section>
+    ${rates.length ? `<section class="panel rates"><h3>Best match win rate (3+ matches)</h3><div style="display:grid;gap:10px">${rates.map((x) =>
+      `<div class="rate"><span>${esc(BY_ID.get(x.id).n)}</span><div class="bar gold"><i style="width:${x.r * 100}%"></i></div><span>${Math.round(x.r * 100)}% of ${x.n}</span></div>`).join("")}</div>
+      <p class="actor" style="white-space:normal">${CHARS.length - titles.size} of ${CHARS.length} characters have never won one of your tournaments.</p></section>` : ""}
+    <div class="section-head"><h2>Past champions</h2>
+      ${state.confirmClear ? `<div class="confirm">Remove all ${h.length} saved brackets? <button class="btn btn-primary btn-sm" data-act="doClear">Clear history</button><button class="btn btn-line btn-sm" data-act="cancelClear">Cancel</button></div>`
+        : `<button class="btn btn-line btn-sm" data-act="askClear">Clear history</button>`}</div>
+    <ul class="entries">${h.map((e) => {
+      const c = BY_ID.get(e.championId), ru = BY_ID.get(e.runnerUpId);
+      return `<li class="entry"><img src="${img(c)}" alt=""><div class="txt"><p>${esc(c.n)}</p><p>${ru ? `def. ${esc(ru.n)} · ` : ""}${new Date(e.at).toLocaleString()}</p></div>
+        <button class="btn btn-line btn-sm" data-act="copyCode" data-code="${e.code}">Copy code</button>
+        <button class="btn btn-ghost btn-sm" data-act="open" data-code="${e.code}">Open</button></li>`;
+    }).join("")}</ul>` + loader;
+}
+
+function viewAbout() {
+  const steps = [
+    ["The draw", `All ${CHARS.length} characters are shuffled into 32 random first-round matchups. Tap “New tournament” any time for a fresh draw.`],
+    ["Pick your winners", "Tap a character to send them through and tap again to undo. Changing an early pick clears anything later that depended on it."],
+    ["Six rounds", `${ROUND_NAMES.join(" → ")}. 63 picks crown one champion.`],
+    ["Crown and share", "Your champion's theme song plays, and they go onto your leaderboard and into My History. Share a link so friends can see your exact picks."],
+  ];
+  const faq = [
+    ["Is my bracket saved?", "Yes. Picks save in this browser as you make them, so you can close the tab and come back. Finished tournaments appear under My History."],
+    ["How does sharing work?", "“Share bracket” copies a link that holds your whole draw and every pick. Anyone who opens it sees your bracket. Opening a shared bracket replaces the one you're working on."],
+    ["How are simulations decided?", "Each undecided matchup is a fair coin flip. Picks you've already made are never changed."],
+    ["How is the leaderboard counted?", "The leaderboard ranks the champions of every tournament finished in this browser. Opening a bracket you've already finished doesn't count it again."],
+    ["Where are the theme songs?", "Tap the music note on any character. The song plays in the Spotify bar at the bottom and keeps going while you pick."],
+    ["Is this official?", "No. MCU 64 is a fan-made game and isn't affiliated with or endorsed by Marvel Studios or Disney."],
+  ];
+  return `<section class="page-head"><p class="eyebrow">How it works</p><h1>About MCU 64</h1></section>
+    <ol class="steps">${steps.map(([t, b], i) => `<li><p class="k">Step ${i + 1}</p><h2>${t}</h2><p>${esc(b)}</p></li>`).join("")}</ol>
+    <section class="faq"><h2>FAQ</h2>${faq.map(([q, a]) => `<details><summary>${q}</summary><p>${esc(a)}</p></details>`).join("")}</section>
+    <div class="toolbar"><a class="btn btn-primary" href="#bracket">Start your bracket</a></div>`;
+}
+
+function openDetail(c) {
+  const dlg = document.getElementById("detail");
+  dlg.innerHTML = `<div class="dlg-head"><h2 id="detail-title">${esc(c.n)}</h2><button class="btn btn-line btn-icon" data-act="closeDetail" aria-label="Close">${ICON.x}</button></div>
+    <div class="dlg-body">
+      <div class="dlg-art"><img src="${img(c)}" alt="${esc(c.n)}"></div>
+      <div class="pills"><span class="pill c">${esc(c.t)}</span><span class="pill">Played by ${esc(c.a)}</span></div>
+      <p class="lede" style="max-width:none">${esc(c.b)}</p>
+      ${c.sp ? `<div class="panel"><h3>Theme song</h3><div class="row">${spotify(c)}</div></div>` : ""}
+      <div class="panel gold"><h3>Best MCU moment</h3><p>${esc(c.m)}</p></div>
+      <div class="two">
+        <div class="panel"><h3 class="sub-h">${ICON.swords} Strengths</h3><ul class="dots">${c.s.map((s) => `<li>${esc(s)}</li>`).join("")}</ul></div>
+        <div class="panel"><h3 class="sub-h" style="color:var(--red)">${ICON.alert} Weaknesses</h3><ul class="dots red">${c.w.map((s) => `<li>${esc(s)}</li>`).join("")}</ul></div>
+      </div>
+      <div class="row"><button class="btn btn-line" data-act="compare" data-id="${c.id}">${ICON.swords} Compare in Versus</button></div>
+    </div>`;
+  if (!dlg.open) dlg.showModal();
+}
+
+/* ---------- render + routing ---------- */
+const VIEWS = { bracket: viewBracket, characters: viewCharacters, versus: viewVersus, leaderboard: viewLeaderboard, history: viewHistory, about: viewAbout };
+function render() {
+  const app = document.getElementById("app");
+  const focusId = document.activeElement?.id;
+  const caret = document.activeElement?.selectionStart;
+  app.innerHTML = VIEWS[state.view]();
+  document.querySelectorAll("[data-nav]").forEach((a) => (a.dataset.nav === state.view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  syncMusicButtons();
+  if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch {} } }
+}
+function go(view) {
+  document.getElementById("detail").open && document.getElementById("detail").close();
+  if (location.hash !== `#${view}`) location.hash = view; else route();
+}
+function route() {
+  const h = location.hash.slice(1);
+  if (h.startsWith("b-")) {
+    const code = h.slice(2).toLowerCase();
+    // Only load a shared code once per browser, so a refresh after more picks keeps them.
+    if (store.get("mcu64:lastShare", "") !== code && decode(code)) { store.set("mcu64:lastShare", code); loadBracket(code, true); }
+    state.view = "bracket";
+  } else {
+    state.view = VIEWS[h] ? h : "bracket";
+  }
+  render();
+}
+
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-act]");
+  if (el && actions[el.dataset.act]) { e.preventDefault(); actions[el.dataset.act](el); }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id === "char-search") { state.q = e.target.value; render(); }
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "vs-a") { state.vsA = e.target.value; render(); }
+  if (e.target.id === "vs-b") { state.vsB = e.target.value; render(); }
+});
+document.getElementById("detail").addEventListener("click", (e) => { if (e.target.id === "detail") e.target.close(); });
+window.addEventListener("hashchange", () => { route(); window.scrollTo({ top: 0 }); });
+
+route();
+initPlayer();
+</script>
+</body>
+</html>
