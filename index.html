@@ -92,9 +92,6 @@ main { padding-block: 32px 64px; }
 .bar > i { display: block; height: 100%; background: var(--red); border-radius: inherit; transition: width .3s; }
 .bar.gold > i { background: var(--gold); }
 .note { text-align: center; color: var(--cyan); font-size: 12px; margin-top: 8px; }
-.setup { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 12px; border: 1px solid color-mix(in oklab, var(--gold) 55%, transparent); border-radius: var(--radius); background: color-mix(in oklab, var(--gold) 8%, transparent); font-size: 13px; }
-.setup > svg { width: 18px; height: 18px; color: var(--gold); flex-shrink: 0; }
-.setup p { flex: 1; min-width: 0; }
 
 /* Round tabs */
 .rounds { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-top: 28px; }
@@ -287,6 +284,10 @@ body { margin: 0; }
 .player-main { flex: 1; min-width: 0; }
 .player-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 4px; }
 .player iframe { display: block; border-radius: 10px; }
+.champ-theme { display: grid; gap: 8px; }
+.champ-theme p { display: flex; align-items: center; gap: 8px; color: var(--gold); font-weight: 600; font-size: 14px; }
+.champ-theme p svg { width: 18px; height: 18px; flex-shrink: 0; }
+.champ-theme iframe { display: block; width: 100%; border: 0; border-radius: 12px; box-shadow: 0 0 0 2px var(--gold); animation: tap-pulse 1.4s ease-in-out infinite; }
 .player.needs-tap .player-label { color: var(--gold); font-weight: 600; white-space: normal; }
 .player.needs-tap iframe { border-radius: 12px; box-shadow: 0 0 0 2px var(--gold); animation: tap-pulse 1.4s ease-in-out infinite; }
 @keyframes tap-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--gold) 90%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--gold) 25%, transparent); } }
@@ -480,10 +481,7 @@ const save = () => store.set("mcu64:current", encode(state.rounds));
 /* Phones can still refuse to start sound from inside Spotify's frame, so playback is
    confirmed through Spotify's own progress events. If a song hasn't started, the bar asks
    for one tap on Spotify's play button, which phones always allow. */
-/* iPhones let a player start songs on its own once it has been tapped during the visit, so
-   phones get a one-time setup: tap ▶ once, and later champions' themes can start by themselves. */
-const IS_TOUCH = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-const player = { ctrl: null, now: null, playing: false, checks: [], unlocked: !IS_TOUCH, setup: false };
+const player = { ctrl: null, now: null, playing: false, checks: [] };
 function initPlayer() {
   window.onSpotifyIframeApiReady = (api) => {
     const first = CHARS.find((c) => c.sp);
@@ -491,19 +489,7 @@ function initPlayer() {
       player.ctrl = ctrl;
       ctrl.addListener("playback_update", (e) => {
         player.playing = Boolean(e?.data && !e.data.isPaused && !e.data.isBuffering);
-        if (!player.playing) return;
-        setNeedsTap(false);
-        if (!player.unlocked) {
-          player.unlocked = true;
-          if (state.view === "bracket") render();
-        }
-        if (player.setup) {
-          player.setup = false;
-          setTimeout(() => {
-            if (player.now && !championOf(state.rounds)) stopTheme();
-            toast("Theme songs are on. Your champion's theme will play when you crown them.");
-          }, 1500);
-        }
+        if (player.playing) setNeedsTap(false);
       });
       if (player.now) playTheme(player.now);
     });
@@ -531,21 +517,18 @@ function playTheme(c) {
   } catch {}
   // loadUri can swallow an immediate play(); nudge once, then ask for a tap.
   player.checks.push(setTimeout(() => { if (player.now === c && !player.playing) try { player.ctrl.play(); } catch {} }, 1200));
-  player.checks.push(setTimeout(() => { if (player.now === c && !player.playing) setNeedsTap(true); }, 3000));
-}
-function startSetup() {
-  const r = currentRound(state.rounds);
-  const c = state.rounds[r].flatMap((m) => [m.a, m.b]).find((x) => x?.sp) || CHARS.find((x) => x.sp);
-  player.checks.forEach(clearTimeout);
-  player.checks = [];
-  player.setup = true;
-  player.now = c;
-  document.getElementById("player").classList.remove("off");
-  document.body.classList.add("playing");
-  try { player.ctrl?.loadUri(`spotify:track:${c.sp}`); } catch {}
-  document.getElementById("player").classList.add("needs-tap");
-  document.getElementById("player-label").textContent = "Tap ▶ once to turn on theme songs";
-  syncMusicButtons();
+  player.checks.push(setTimeout(() => {
+    if (player.now !== c || player.playing) return;
+    // Blocked (iPhone): a champion gets a big player right in their card instead of the bar.
+    if (state.view === "bracket" && !state.review && championOf(state.rounds)?.id === c.id) {
+      state.champTapFor = c.id;
+      stopTheme();
+      render();
+      document.getElementById("champ-theme")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      setNeedsTap(true);
+    }
+  }, 3000));
 }
 function setNeedsTap(on) {
   const bar = document.getElementById("player");
@@ -557,7 +540,6 @@ function stopTheme() {
   player.checks.forEach(clearTimeout);
   player.checks = [];
   setNeedsTap(false);
-  player.setup = false;
   player.now = null;
   document.getElementById("player").classList.add("off");
   document.body.classList.remove("playing");
@@ -630,8 +612,6 @@ const actions = {
     await copy(lines.join("\n"), "Summary copied to your clipboard");
   },
   info(el) { openDetail(BY_ID.get(el.dataset.id)); },
-  setupThemes() { startSetup(); },
-  dismissSetup() { state.setupDismissed = true; render(); },
   theme(el) { const c = BY_ID.get(el.dataset.id); player.now?.id === c.id ? stopTheme() : playTheme(c); },
   stopTheme() { stopTheme(); },
   closeDetail() { document.getElementById("detail").close(); },
@@ -708,8 +688,6 @@ function viewBracket() {
       <div class="progress-meta"><span>${champ ? "Champion crowned" : ROUND_NAMES[round]}</span><span>${made} / 63 picks</span></div>
       <div class="bar" role="progressbar" aria-label="Tournament progress" aria-valuemin="0" aria-valuemax="63" aria-valuenow="${made}"><i style="width:${(made / 63) * 100}%"></i></div>
       ${state.fromShare ? `<p class="note">Loaded from a shared bracket. Any picks you change are saved as your own.</p>` : ""}
-      ${!player.unlocked && !state.setupDismissed && !champ ? `<div class="setup">${ICON.music}<p>Want your champion's theme to play automatically? On phones, tap ▶ in the Spotify player once first.</p>
-        <button class="btn btn-gold btn-sm" data-act="setupThemes">Set up</button><button class="btn btn-line btn-sm btn-icon" data-act="dismissSetup" aria-label="Hide this tip" title="Hide">&#10005;</button></div>` : ""}
     </div>`;
 
   if (champ && !state.review) return html + viewChampion(champ);
@@ -766,6 +744,10 @@ function viewChampion(c) {
     <div class="champion-art"><img src="${img(c)}" alt="${esc(c.n)}"></div>
     <div class="champion-body">
       <div><h2>${esc(c.n)}</h2><p class="team">${esc(c.t)}</p></div>
+      ${c.sp && state.champTapFor === c.id ? `<div class="champ-theme" id="champ-theme">
+        <p>${ICON.music} Tap ▶ to play ${esc(c.n)}'s theme</p>
+        <iframe title="${esc(c.n)} theme song: ${esc(c.tt || "Spotify player")}" src="https://open.spotify.com/embed/track/${esc(c.sp)}" height="152" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+      </div>` : ""}
       <div class="panel gold"><h3>Best MCU moment</h3><p>${esc(c.m)}</p></div>
       <p>${ICON.trophy} <span class="trophy">${plural(titles, "title", "titles")}</span> for ${esc(c.n)} in your tournaments. <a href="#leaderboard">See your leaderboard</a></p>
       <div class="panel"><h3>Path to victory</h3><ol class="path">${path.map((s) => `<li><span>${ROUND_SHORT[s.round]}</span><span>Defeated <b>${esc(s.opponent.n)}</b></span></li>`).join("")}</ol></div>
