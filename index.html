@@ -104,7 +104,7 @@ main { padding-block: 32px 64px; }
 /* Matchups */
 .matches { display: grid; gap: 20px; margin-top: 20px; }
 @media (min-width: 980px) { .matches { grid-template-columns: 1fr 1fr; } }
-.match { border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 70%, transparent); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.match { border: 2px solid var(--red); background: color-mix(in oklab, var(--surface) 70%, transparent); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
 .match-label { text-align: center; font-family: var(--font-display); font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--muted); }
 .vs { text-align: center; font-family: var(--font-display); font-size: 12px; color: var(--red); letter-spacing: .3em; margin-block: -4px; }
 .fighter { position: relative; display: flex; align-items: stretch; border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); overflow: hidden; transition: border-color .15s, transform .15s, opacity .2s, filter .2s; }
@@ -284,6 +284,9 @@ body { margin: 0; }
 .player-main { flex: 1; min-width: 0; }
 .player-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 4px; }
 .player iframe { display: block; border-radius: 10px; }
+.player.needs-tap .player-label { color: var(--gold); font-weight: 600; white-space: normal; }
+.player.needs-tap iframe { border-radius: 12px; box-shadow: 0 0 0 2px var(--gold); animation: tap-pulse 1.4s ease-in-out infinite; }
+@keyframes tap-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--gold) 90%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--gold) 25%, transparent); } }
 body.playing { padding-bottom: 130px; }
 .fighter .music { position: absolute; bottom: 8px; right: 8px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid color-mix(in oklab, var(--cyan) 60%, transparent); background: color-mix(in oklab, var(--surface) 80%, transparent); color: var(--cyan); display: grid; place-items: center; }
 .fighter .music svg { width: 16px; height: 16px; }
@@ -471,12 +474,19 @@ const save = () => store.set("mcu64:current", encode(state.rounds));
 /* ---------- theme songs (Spotify iFrame API) ---------- */
 /* One controller lives for the whole visit. Phones only allow playback to start inside a tap,
    so playTheme must be called straight from a click handler. */
-const player = { ctrl: null, now: null };
+/* Phones can still refuse to start sound from inside Spotify's frame, so playback is
+   confirmed through Spotify's own progress events. If a song hasn't started, the bar asks
+   for one tap on Spotify's play button, which phones always allow. */
+const player = { ctrl: null, now: null, playing: false, checks: [] };
 function initPlayer() {
   window.onSpotifyIframeApiReady = (api) => {
     const first = CHARS.find((c) => c.sp);
     api.createController(document.getElementById("spotify-host"), { uri: `spotify:track:${first.sp}`, width: "100%", height: 80 }, (ctrl) => {
       player.ctrl = ctrl;
+      ctrl.addListener("playback_update", (e) => {
+        player.playing = Boolean(e?.data && !e.data.isPaused && !e.data.isBuffering);
+        if (player.playing) setNeedsTap(false);
+      });
       if (player.now) playTheme(player.now);
     });
   };
@@ -492,13 +502,29 @@ function playTheme(c) {
   document.getElementById("player-label").textContent = `${c.n} — ${c.tt || "Theme song"}`;
   document.getElementById("player").classList.remove("off");
   document.body.classList.add("playing");
+  setNeedsTap(false);
+  syncMusicButtons();
+  player.checks.forEach(clearTimeout);
+  player.checks = [];
+  if (!player.ctrl) return; // starts once the controller is ready
+  player.playing = false;
   try {
-    if (!player.ctrl) return; // starts once the controller is ready
     if (same) player.ctrl.resume(); else { player.ctrl.loadUri(`spotify:track:${c.sp}`); player.ctrl.play(); }
   } catch {}
-  syncMusicButtons();
+  // loadUri can swallow an immediate play(); nudge once, then ask for a tap.
+  player.checks.push(setTimeout(() => { if (player.now === c && !player.playing) try { player.ctrl.play(); } catch {} }, 1200));
+  player.checks.push(setTimeout(() => { if (player.now === c && !player.playing) setNeedsTap(true); }, 3000));
+}
+function setNeedsTap(on) {
+  const bar = document.getElementById("player");
+  bar.classList.toggle("needs-tap", on);
+  const c = player.now;
+  if (c) document.getElementById("player-label").textContent = on ? `Tap ▶ to play ${c.n}'s theme` : `${c.n} — ${c.tt || "Theme song"}`;
 }
 function stopTheme() {
+  player.checks.forEach(clearTimeout);
+  player.checks = [];
+  setNeedsTap(false);
   player.now = null;
   document.getElementById("player").classList.add("off");
   document.body.classList.remove("playing");
