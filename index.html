@@ -92,6 +92,9 @@ main { padding-block: 32px 64px; }
 .bar > i { display: block; height: 100%; background: var(--red); border-radius: inherit; transition: width .3s; }
 .bar.gold > i { background: var(--gold); }
 .note { text-align: center; color: var(--cyan); font-size: 12px; margin-top: 8px; }
+.setup { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 12px; border: 1px solid color-mix(in oklab, var(--gold) 55%, transparent); border-radius: var(--radius); background: color-mix(in oklab, var(--gold) 8%, transparent); font-size: 13px; }
+.setup > svg { width: 18px; height: 18px; color: var(--gold); flex-shrink: 0; }
+.setup p { flex: 1; min-width: 0; }
 
 /* Round tabs */
 .rounds { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-top: 28px; }
@@ -477,7 +480,10 @@ const save = () => store.set("mcu64:current", encode(state.rounds));
 /* Phones can still refuse to start sound from inside Spotify's frame, so playback is
    confirmed through Spotify's own progress events. If a song hasn't started, the bar asks
    for one tap on Spotify's play button, which phones always allow. */
-const player = { ctrl: null, now: null, playing: false, checks: [] };
+/* iPhones let a player start songs on its own once it has been tapped during the visit, so
+   phones get a one-time setup: tap ▶ once, and later champions' themes can start by themselves. */
+const IS_TOUCH = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+const player = { ctrl: null, now: null, playing: false, checks: [], unlocked: !IS_TOUCH, setup: false };
 function initPlayer() {
   window.onSpotifyIframeApiReady = (api) => {
     const first = CHARS.find((c) => c.sp);
@@ -485,7 +491,19 @@ function initPlayer() {
       player.ctrl = ctrl;
       ctrl.addListener("playback_update", (e) => {
         player.playing = Boolean(e?.data && !e.data.isPaused && !e.data.isBuffering);
-        if (player.playing) setNeedsTap(false);
+        if (!player.playing) return;
+        setNeedsTap(false);
+        if (!player.unlocked) {
+          player.unlocked = true;
+          if (state.view === "bracket") render();
+        }
+        if (player.setup) {
+          player.setup = false;
+          setTimeout(() => {
+            if (player.now && !championOf(state.rounds)) stopTheme();
+            toast("Theme songs are on. Your champion's theme will play when you crown them.");
+          }, 1500);
+        }
       });
       if (player.now) playTheme(player.now);
     });
@@ -515,6 +533,20 @@ function playTheme(c) {
   player.checks.push(setTimeout(() => { if (player.now === c && !player.playing) try { player.ctrl.play(); } catch {} }, 1200));
   player.checks.push(setTimeout(() => { if (player.now === c && !player.playing) setNeedsTap(true); }, 3000));
 }
+function startSetup() {
+  const r = currentRound(state.rounds);
+  const c = state.rounds[r].flatMap((m) => [m.a, m.b]).find((x) => x?.sp) || CHARS.find((x) => x.sp);
+  player.checks.forEach(clearTimeout);
+  player.checks = [];
+  player.setup = true;
+  player.now = c;
+  document.getElementById("player").classList.remove("off");
+  document.body.classList.add("playing");
+  try { player.ctrl?.loadUri(`spotify:track:${c.sp}`); } catch {}
+  document.getElementById("player").classList.add("needs-tap");
+  document.getElementById("player-label").textContent = "Tap ▶ once to turn on theme songs";
+  syncMusicButtons();
+}
 function setNeedsTap(on) {
   const bar = document.getElementById("player");
   bar.classList.toggle("needs-tap", on);
@@ -525,6 +557,7 @@ function stopTheme() {
   player.checks.forEach(clearTimeout);
   player.checks = [];
   setNeedsTap(false);
+  player.setup = false;
   player.now = null;
   document.getElementById("player").classList.add("off");
   document.body.classList.remove("playing");
@@ -597,6 +630,8 @@ const actions = {
     await copy(lines.join("\n"), "Summary copied to your clipboard");
   },
   info(el) { openDetail(BY_ID.get(el.dataset.id)); },
+  setupThemes() { startSetup(); },
+  dismissSetup() { state.setupDismissed = true; render(); },
   theme(el) { const c = BY_ID.get(el.dataset.id); player.now?.id === c.id ? stopTheme() : playTheme(c); },
   stopTheme() { stopTheme(); },
   closeDetail() { document.getElementById("detail").close(); },
@@ -673,6 +708,8 @@ function viewBracket() {
       <div class="progress-meta"><span>${champ ? "Champion crowned" : ROUND_NAMES[round]}</span><span>${made} / 63 picks</span></div>
       <div class="bar" role="progressbar" aria-label="Tournament progress" aria-valuemin="0" aria-valuemax="63" aria-valuenow="${made}"><i style="width:${(made / 63) * 100}%"></i></div>
       ${state.fromShare ? `<p class="note">Loaded from a shared bracket. Any picks you change are saved as your own.</p>` : ""}
+      ${!player.unlocked && !state.setupDismissed && !champ ? `<div class="setup">${ICON.music}<p>Want your champion's theme to play automatically? On phones, tap ▶ in the Spotify player once first.</p>
+        <button class="btn btn-gold btn-sm" data-act="setupThemes">Set up</button><button class="btn btn-line btn-sm btn-icon" data-act="dismissSetup" aria-label="Hide this tip" title="Hide">&#10005;</button></div>` : ""}
     </div>`;
 
   if (champ && !state.review) return html + viewChampion(champ);
