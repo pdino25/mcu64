@@ -331,7 +331,7 @@ const ROUND_NAMES = ["Round of 64", "Round of 32", "Sweet 16", "Elite 8", "Final
 const ROUND_SHORT = ["R64", "R32", "S16", "E8", "F4", "Final"];
 const BY_ID = new Map(CHARS.map((c) => [c.id, c]));
 const INDEX_BY_ID = new Map(CHARS.map((c, i) => [c.id, i]));
-const img = (c) => `characters/${c.id}.webp`;
+const img = (c) => `${c.id}.webp`;
 
 const ICON = {
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
